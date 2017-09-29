@@ -1,0 +1,9 @@
+# no need to sync object or dependecy files
+*.o
+*.d
+
+# backups
+*~
+
+#test executable
+test_exe

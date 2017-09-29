@@ -1,0 +1,156 @@
+{
+	"digitizers" :
+	{
+		"boards" : [
+			{
+			"type" : "PCI",
+			"link_number" : 0,
+			"conet_node" : 0,
+			"base_address" : 0
+			},
+		],
+	},
+	"record_length" : {
+		"value" : 5000,
+		"comment" : "number of samples in one waveform",
+	},
+	"external_trigger" : {
+		"value" : "acquisition_only",
+		"comment" : "options are 'acquisition_only', 'acquisition_and_trgout', 'disabled', and 'trgout_only'"
+	},
+	"block_transfer" : {
+		"value" : 128,
+		"comment" : "number of events to readout at once. Must be smaller than number of events stored on digitizer",
+	},
+	"post_trigger" : {
+		"value" : 60,
+		"comment" : "percentage of event after trigger",
+	},
+	"trigger_edge" : {
+		"value" : "falling",
+		"comment" : "options are 'falling' or 'rising'",
+	},
+	"fpio_level" : {
+		"value" : "ttl",
+		"comment" : "options are 'ttl' or 'nim'. 'nim' doesn't seem to work"
+	},
+	"events_per_file" : {
+		"value" : 10000,
+		"comment" : "number of events per raw data file",
+	},
+	"is_zle" : {
+		"value" : "no",
+		"comment" : "if the data is zle-encoded or not",
+	},
+	"channel_trigger" : {
+		"value" : "acquisition_only",
+		"comment" : "auto-trigger settings. Options are 'disabled', 'acquisition_only', 'acquisition_and_trgout'.",
+	},
+	"raw_data_dir" : {
+		"value" : "/data/ASTERIX/raw",
+		"comment" : "where the data gets written. No trailing '/'",
+	},
+	"channels" : [
+		{
+		"board" : 0,
+		"channel" : 0,
+		"enabled" : 1,
+		"dc_offset" : -45,
+		"trigger_threshold" : 15000,
+		"zle_threshld" : 15000,
+		},
+		{
+		"board" : 0,
+		"channel" : 1,
+		"enabled" : 1,
+		"dc_offset" : -45,
+		"trigger_threshold" : 15000,
+		"zle_threshld" : 15000,
+		},
+		{
+		"board" : 0,
+		"channel" : 2,
+		"enabled" : 1,
+		"dc_offset" : -45,
+		"trigger_threshold" : 15000,
+		"zle_threshld" : 15000,
+		},
+		{
+		"board" : 0,
+		"channel" : 3,
+		"enabled" : 1,
+		"dc_offset" : -45,
+		"trigger_threshold" : 15000,
+		"zle_threshld" : 15000,
+		},
+		{
+		"board" : 0,
+		"channel" : 4,
+		"enabled" : 1,
+		"dc_offset" : -45,
+		"trigger_threshold" : 15000,
+		"zle_threshld" : 15000,
+		},
+		{
+		"board" : 0,
+		"channel" : 5,
+		"enabled" : 1,
+		"dc_offset" : -45,
+		"trigger_threshold" : 15000,
+		"zle_threshld" : 15000,
+		},
+		{
+		"board" : 0,
+		"channel" : 6,
+		"enabled" : 1,
+		"dc_offset" : -45,
+		"trigger_threshold" : 15000,
+		"zle_threshld" : 15000,
+		},
+		{
+		"board" : 0,
+		"channel" : 7,
+		"enabled" : 0,
+		"dc_offset" : 0,
+		"trigger_threshold" : 0,
+		"zle_threshld" : 0,
+		},
+	],
+	"registers" : [
+		{
+		"board" : 0,
+		"register" : "0x8028",
+		"data" : "0x0",
+		"mask" : "0xFFFFFFFF",
+		"comment" : "ZLE pre/post trigger samples, p11"
+		},
+		{
+		"board" : 0,
+		"register" : "0x8000",
+		"data" : "0x20040",
+		"mask" : "0xF0042",
+		"comment" : "Board config, p17. Overlapping triggers, zero-suppression, and trigger polarity"
+		},
+		{
+		"board" : 0,
+		"register" : "0x810C",
+		"data" : "0x140007F",
+		"mask" : "0x7F000FF",
+		"comment" : "coincidence requirement, p26"
+		},
+		{
+		"board" : 0,
+		"register" : "0x8084",
+		"data" : "0x1",
+		"mask" : "0xFFF",
+		"comment" : "time under threshold, p13"
+		},
+		{
+		"board" : 0,
+		"register" : "0x811C",
+		"data" : "0x400000",
+		"mask" : "0x600000",
+		"comment" : "extended trigger time tag, p32"
+		},
+	],
+}
