@@ -1,0 +1,15 @@
+=====================
+      OBELIX
+=====================
+
+Data acquisition software for the ASTERIX detector.
+
+author: Darryl Masson, Purdue University
+
+- Requires:
+CAEN V1724 plus its libraries
+sqlite3
+c++ mongo client
+
+- Usage:
+$ obelix /path/to/config/file.json
