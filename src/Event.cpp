@@ -1,43 +1,40 @@
 #include "Event.h"
+#include <cstring>
 
 int Event::s_TimestampRollovers = 0;
-int Event::s_LastTimestamp;
+long Event::s_LastTimestamp = 0;
 
-Event::Event() : m_iEventSizeMask(0xFFFFFFF), m_iBoardIDMask(0xF8000000), m_iZLEMask(0x1000000), m_iChannelMaskMask(0xFF), m_iCounterMask(0xFFFFFF),
-                 m_iBoardIDShift(24), m_iTimestampOffset(2147483648) {}
+Event::Event() {}
 
-Event::~Event() {
-    m_Body.reset();
-}
+Event::~Event() {}
 
-void Event::Decode(const vector<unsigned int*>& headers, const vector<unsigned int*>& bodies) {
-    vector<unsigned int> EventSizes, ChannelMasks, BoardIDs;
+void Event::Decode(const std::vector<unsigned int*>& headers, const std::vector<unsigned int*>& bodies) {
+    std::vector<unsigned int> EventSizes, ChannelMasks, BoardIDs;
     unsigned long lTimestamp(0);
-    unsigned int iEventCounter(0), iTimestamp;
-    bool bIsZLE;
+    unsigned int iEventCounter(0), iTimestamp(0);
+    bool bIsZLE(false);
     unsigned int iEventChannelMask(0);
-    int iNumWordsHeader = 4*headers.size();
     int iNumWordsBody = 0;
     int iNumBytesEvent(0), iNumBytesBody(0);
     for (auto& header : headers) {
-        EventSizes.push_back(header[0] & m_iEventSizeMask);
+        EventSizes.push_back(header[0] & s_EventSizeMask);
         iNumWordsBody += (EventSizes.back() - 4);
-        BoardIDs.push_back((header[1] & m_iBoardIDMask) >> m_iBoardIDShift);
-        ChannelMasks.push_back(header[1] & m_iChannelMask);
-        iEventCounter = header[2] & m_iCounterMask;
-        bIsZLE = header[1] & m_iZLEMask;
-        iTimestamp = ((header[1] & m_lTSMask) << m_iTSShift) & (header[3]);
+        BoardIDs.push_back((header[1] & s_BoardIDMask) >> s_BoardIDShift);
+        ChannelMasks.push_back(header[1] & s_ChannelMaskMask);
+        iEventCounter = header[2] & s_CounterMask;
+        bIsZLE = header[1] & s_ZLEMask;
+        iTimestamp = header[3];
     }
     if (iTimestamp < s_LastTimestamp) s_TimestampRollovers++;
-    lTimestamp = iTimestamp + s_TimestampRollovers * m_iTimestampOffset;
+    lTimestamp = iTimestamp + s_TimestampRollovers * s_TimestampOffset;
     s_LastTimestamp = iTimestamp;
     for (unsigned i = 0; i < ChannelMasks.size(); i++) iEventChannelMask |= (ChannelMasks[i] << (NUM_CH*BoardIDs[i]));
-    m_iNumBytesBody = iNumWordsBody * 4;
+    iNumBytesBody = iNumWordsBody * 4;
     iNumBytesEvent = iNumBytesBody + m_Header.size()*4;
     try {
         m_Body.resize(iNumBytesBody);
     } catch (std::exception& e) {
-        throw
+        throw std::bad_alloc();
     }
     char* cPtr(m_Body.data());
     for (unsigned i = 0; i < headers.size(); i++) {
@@ -52,7 +49,7 @@ void Event::Decode(const vector<unsigned int*>& headers, const vector<unsigned i
     m_Header[4] = lTimestamp & (0xFFFFFFFFl);
 }
 
-int Event::Write(const std::ofstream& fout) {
+int Event::Write(std::ofstream& fout) {
     fout.write((char*)m_Header.data(), m_Header.size()*4);
     fout.write(m_Body.data(), m_Body.size());
     return m_Header[2] & 0x7FFFFFFF;

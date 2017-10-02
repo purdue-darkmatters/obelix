@@ -12,6 +12,8 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <stdexcept>
+#include <exception>
 
 //using namespace std;
 

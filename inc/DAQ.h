@@ -4,22 +4,26 @@
 #include "Digitizer.h"
 #include "Event.h"
 
+#include <sqlite3.h>
+#include "mongo/bson/bson.h"
+
 #include <thread>
 #include <atomic>
 #include <mutex>
-
-#include <utility>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
 
 #include <ctime>
 #include <chrono>
 #include <unistd.h>
 #include <cstdint>
 #include <cctype>
-#include <sys/time.h>
+#include <chrono>
 
-namespace pt = boost::property_tree;
+class DAQException : public std::exception {
+public:
+    const char* what() const throw () {
+        return "DAQ error";
+    }
+};
 
 class DAQ {
 public:
@@ -32,7 +36,7 @@ private:
     void StartRun();
     void EndRun();
     void ReadInput();
-    void DecodeEvents(const bool which, const int iNumEvents);
+    void DecodeEvents(const bool which, const unsigned int iNumEvents);
     void WriteToDisk(const bool which);
     void DoesNothing() {}; // for creation of threads
 
@@ -44,12 +48,12 @@ private:
 
     std::ofstream fout;
     sqlite3* m_RunsDB;
-    std::unique_ptr<Digitizer> Digi;
+    std::unique_ptr<Digitizer> dig;
     std::array<std::thread, 2> m_DecodeThread;
     std::thread m_WriteThread;
     std::thread m_ReadThread;
 
-    unsigned long t_start;
+    std::chrono::high_resolution_clock::time_point m_tStart;
     std::string m_sRunName;
     std::string m_sRunPath;
     int m_iFileCounter;
@@ -62,6 +66,7 @@ private:
     std::atomic<bool> m_abWriting;
     std::array<std::vector<Event>, 2> m_vEvents;
 
+    mongo::BSONObj config_dict;
     struct {
         int EventsPerFile;
         int IsZLE;
@@ -71,6 +76,6 @@ private:
         std::vector<ChannelSettings_t> ChannelSettings;
         int PostTrigger;
     } config;
-}
+};
 
 #endif // _DAQ_H_ defined

@@ -18,22 +18,22 @@ public:
     Event();
     ~Event();
     void Decode(const std::vector<unsigned int*>& headers, const std::vector<unsigned int*>& bodies);
-    int Write(const std::ofstream& fout);
+    int Write(std::ofstream& fout);
 
 private:
     std::array<unsigned int, 5> m_Header;
-    std::vector<unsigned int> m_Body;
+    std::vector<char> m_Body;
 
     static int s_TimestampRollovers;
     static long s_LastTimestamp;
 
-    const unsigned int m_iEventSizeMask;
-    const unsigned int m_iBoardIDMask;
-    const unsigned int m_iZLEMask;
-    const unsigned int m_iChannelMaskMask;
-    const unsigned int m_iCounterMask;
-    const unsigned int m_iBoardIDShift;
-    const unsigned int m_iTimestampOffset;
+    static const unsigned int s_EventSizeMask = (0xFFFFFFF);
+    static const unsigned int s_BoardIDMask = (0xF8000000);
+    static const unsigned int s_ZLEMask = (0x1000000);
+    static const unsigned int s_ChannelMaskMask = (0xFF);
+    static const unsigned int s_CounterMask = (0xFFFFFF);
+    static const unsigned int s_BoardIDShift = (24);
+    static const unsigned int s_TimestampOffset = (2147483648);
 };
 
 #endif // _EVENT_H_ defined

@@ -1,10 +1,9 @@
 CC = g++
-OBJDIR = obj
 SRCDIR = src
 INCDIR = inc
-CFLAGS = -g -Wall -Iinc -std=c++11 -O2 -lsqlite3 -lboost
-CPPFLAGS = $(CFLAGS) $(DEFS)
-#DEFS := $(DEFS) -DCCM_ONLY
+CFLAGS = -g -Wall -Iinc -std=c++11 -O2
+CPPFLAGS = $(CFLAGS)
+LDFLAGS = -lCAENDigitizer -lmongoclient -lsqlite3 -lpthread
 INSTALLDIR = /usr/local/bin
 INSTALL = -o $(INSTALLDIR)/obelix
 TEST = -o test_exe
@@ -13,10 +12,10 @@ objects := $(sources:.cpp=.o)
 VPATH = src:inc
 
 test : $(objects)
-	$(CC) $(CPPFLAGS) $(TEST) $(sources)
+	$(CC) $(CPPFLAGS) $(TEST) $(objects) $(LDFLAGS)
 
 install : $(objects)
-	$(CC) $(CPPFLAGS) $(INSTALL) $(objects)
+	$(CC) $(CPPFLAGS) $(INSTALL) $(objects) $(LDFLAGS)
 
 $(L)%.o : %.cpp %.h %.d
 	$(CC) $(CPPFLAGS) -c $< -o $@
