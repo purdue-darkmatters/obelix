@@ -58,7 +58,6 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
     ret = CAEN_DGTZ_SetMaxNumEventsBLT(m_iHandle, CS.BlockTransfer);
     if (ret != CAEN_DGTZ_Success) std::cout << "Error setting block block transfer\n";
     ret = CAEN_DGTZ_SetAcquisitionMode(m_iHandle, CAEN_DGTZ_SW_CONTROLLED);
-    if (ret != CAEN_DGTZ_Success) std::cout << "Error setting acquisition mode\n";
     ret = CAEN_DGTZ_SetExtTriggerInputMode(m_iHandle, CS.ExtTriggerMode);
     if (ret != CAEN_DGTZ_Success) std::cout << "Error setting external trigger\n";
 
@@ -75,7 +74,6 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
         ret = CAEN_DGTZ_SetChannelTriggerThreshold(m_iHandle, ch_set.Channel, ch_set.TriggerThreshold);
         if (ret != CAEN_DGTZ_Success) std::cout << "Error setting channel " << ch_set.Channel << " trigger threshold\n";
         ret = CAEN_DGTZ_SetTriggerPolarity(m_iHandle, ch_set.Channel, CAEN_DGTZ_TriggerOnFallingEdge);
-        if (ret != CAEN_DGTZ_Success) std::cout << "Error setting channel " << ch_set.Channel << " trigger polarity\n";
         ret = WriteRegister(GW_t{CAEN_DGTZ_CHANNEL_ZS_THRESHOLD_BASE_ADDRESS + (0x100 * ch_set.Channel),
                                   (1 << 31) + ch_set.ZLEThreshold,
                                   THRESHOLD_MASK});

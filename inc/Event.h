@@ -17,7 +17,7 @@ class Event {
 public:
     Event();
     ~Event();
-    void Decode(const std::vector<unsigned int*>& headers, const std::vector<unsigned int*>& bodies);
+    void Decode(const std::vector<unsigned int*>& headers, const std::vector<unsigned int*>& bodies); // should handle multiple digitizers (up to 32 total channels)
     int Write(std::ofstream& fout);
 
 private:

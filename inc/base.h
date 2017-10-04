@@ -17,7 +17,7 @@
 
 //using namespace std;
 
-const std::string runs_db_addr("/depot/darkmatter/apps/asterix/asterix_runs_database.db");
+const std::string runs_db_addr("/depot/darkmatter/apps/asterix/asterix_runs_db.db");
 const std::string config_dir("/depot/darkmatter/apps/asterix/obelix/config/");
 
 struct GW_t {

@@ -31,6 +31,7 @@ void Event::Decode(const std::vector<unsigned int*>& headers, const std::vector<
     for (unsigned i = 0; i < ChannelMasks.size(); i++) iEventChannelMask |= (ChannelMasks[i] << (NUM_CH*BoardIDs[i]));
     iNumBytesBody = iNumWordsBody * 4;
     iNumBytesEvent = iNumBytesBody + m_Header.size()*4;
+
     try {
         m_Body.resize(iNumBytesBody);
     } catch (std::exception& e) {

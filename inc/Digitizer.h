@@ -17,7 +17,7 @@ public:
     Digitizer();
     Digitizer(int LinkNumber, int ConetNode, int BaseAddress);
     ~Digitizer();
-    void ProgramDigitizer(ConfigSettings_t& CS);
+    void ProgramDigitizer(ConfigSettings_t& CS); // will need stuff for syncing
     unsigned int ReadBuffer(unsigned int& BufferSize, bool which);
     const char* GetBuffer(int which) {return buffers[which];}
     void StartAcquisition() {CAEN_DGTZ_SWStartAcquisition(m_iHandle);}

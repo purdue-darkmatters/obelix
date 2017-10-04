@@ -35,7 +35,6 @@ public:
 private:
     void StartRun();
     void EndRun();
-    void ReadInput();
     void DecodeEvents(const bool which, const unsigned int iNumEvents);
     void WriteToDisk(const bool which);
     void DoesNothing() {}; // for creation of threads
@@ -48,10 +47,9 @@ private:
 
     std::ofstream fout;
     sqlite3* m_RunsDB;
-    std::unique_ptr<Digitizer> dig;
+    std::unique_ptr<Digitizer> dig; // make vector
     std::array<std::thread, 2> m_DecodeThread;
     std::thread m_WriteThread;
-    std::thread m_ReadThread;
 
     std::chrono::high_resolution_clock::time_point m_tStart;
     std::string m_sRunName;
@@ -62,7 +60,7 @@ private:
     std::vector<unsigned int> m_vEventSizes;
 
     bool m_bWhich;
-    std::array<const char*, 2> buffers;
+    std::array<const char*, 2> buffers; // make vector
     std::atomic<bool> m_abWriting;
     std::array<std::vector<Event>, 2> m_vEvents;
 

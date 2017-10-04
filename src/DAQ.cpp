@@ -4,6 +4,7 @@
 #include <iomanip>
 #include "mongo/db/json.h"
 #include "mongo/bson/bson.h"
+#include "kbhit.h"
 
 DAQ::DAQ() {
     int rc = sqlite3_open_v2(runs_db_addr.c_str(), &m_RunsDB, SQLITE_OPEN_READWRITE, NULL);
@@ -14,7 +15,6 @@ DAQ::DAQ() {
     m_WriteThread = std::thread(&DAQ::DoesNothing, this);
     m_DecodeThread[0] = std::thread(&DAQ::DoesNothing, this);
     m_DecodeThread[1] = std::thread(&DAQ::DoesNothing, this);
-    m_ReadThread = std::thread(&DAQ::ReadInput, this);
 
     m_abQuit = false;
     m_abRun = false;
@@ -27,7 +27,6 @@ DAQ::DAQ() {
 }
 
 DAQ::~DAQ() {
-    m_ReadThread = std::thread(&DAQ::DoesNothing, this);
     if (m_WriteThread.joinable()) m_WriteThread.join();
     for (auto& th : m_DecodeThread) if (th.joinable()) th.join();
     EndRun();
@@ -56,9 +55,8 @@ void DAQ::Setup(const std::string& filename) {
         std::cout << "Error parsing " << filename << ". Is it valid json?\n";
         throw DAQException();
     }
-
+    // will need some more values in config json about board numbers
     ConfigSettings_t CS;
-
     CS.RecordLength = config_dict["record_length"]["value"].Int();
     CS.PostTrigger = config_dict["post_trigger"]["value"].Int();
     CS.BlockTransfer = config_dict["block_transfer"]["value"].Int();
@@ -89,12 +87,13 @@ void DAQ::Setup(const std::string& filename) {
     for (auto& cs : config_dict["channels"].Array()) {
         ChanSet.Channel = cs["channel"].Int();
         ChanSet.Enabled = cs["enabled"].Int();
-        ChanSet.DCoffset = cs["dc_offset"].Int();
+        ChanSet.DCoffset = (cs["dc_offset"].Int() + 50) * 65535/100;
         ChanSet.TriggerThreshold = cs["trigger_threshold"].Int();
         ChanSet.TriggerMode = CS.ChTriggerMode;
         ChanSet.ZLEThreshold = cs["zle_threshold"].Int();
         if (ChanSet.Enabled) CS.EnableMask |= (1 << ChanSet.Channel);
         CS.ChannelSettings.push_back(ChanSet);
+        config.ChannelSettings.push_back(ChanSet);
     }
 
     for (auto& gw : config_dict["registers"].Array()) {
@@ -120,29 +119,33 @@ void DAQ::StartRun() {
     strftime(temp, sizeof(temp), "%Y%m%d_%H%M", localtime(&rawtime));
     config.RunName = temp;
     std::cout << "\nStarting run " << config.RunName << "\n";
-    std::string command = "mkdir " + config.RawDataDir + config.RunName;
-    system(command.c_str());
-    std::stringstream fullfilename;
-    fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << std::setw(6) << std::setfill('0') << config.NumFiles << std::flush << ".ast";
-    fout.open(fullfilename.str(), std::ofstream::binary | std::ofstream::out);
+    if (m_abSaveWaveforms) {
+        std::string command = "mkdir " + config.RawDataDir + config.RunName;
+        int ignore = system(command.c_str());
+        ignore = 0;
+        std::stringstream fullfilename;
+        fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << std::setw(6) << std::setfill('0') << config.NumFiles << std::flush << ".ast";
+        fout.open(fullfilename.str(), std::ofstream::binary | std::ofstream::out);
+    }
 }
 
 void DAQ::EndRun() {
     std::cout << "\nEnding run " << config.RunName << "\n";
-    fout.close();
+    if (fout.is_open()) fout.close();
     std::chrono::high_resolution_clock::time_point tEnd = std::chrono::high_resolution_clock::now();
     std::stringstream command;
     char* errmsg(nullptr);
-    command << "INSERT INTO runs (name, start_time, end_time, runtime, events, raw_status, source) VALUES ('"
-        << config.RunName << "'," << m_tStart.time_since_epoch().count() << "," << tEnd.time_since_epoch().count() << ","
-        << std::chrono::duration_cast<std::chrono::duration<double>>(tEnd-m_tStart).count() << "," << m_vEventSizes.size()
-        << ",'acquired','" << (config.IsZLE ? "none" : "LED") << "');";
-    int rc = sqlite3_exec(m_RunsDB, command.str().c_str(), nullptr, nullptr, &errmsg);
-    if (rc != SQLITE_OK) {
-        std::cout << "Couldn't add entry to runs databse\nError: " << errmsg << "\n";
-        sqlite3_free(errmsg);
+    if (!m_abSaveWaveforms) {
+        command << "INSERT INTO runs (name, start_time, end_time, runtime, events, raw_status, source) VALUES ('"
+            << config.RunName << "'," << m_tStart.time_since_epoch().count() << "," << tEnd.time_since_epoch().count() << ","
+            << std::chrono::duration_cast<std::chrono::duration<double>>(tEnd-m_tStart).count() << "," << m_vEventSizes.size()
+            << ",'acquired','" << (config.IsZLE ? "none" : "LED") << "');";
+        int rc = sqlite3_exec(m_RunsDB, command.str().c_str(), nullptr, nullptr, &errmsg);
+        if (rc != SQLITE_OK) {
+            std::cout << "Couldn't add entry to runs databse\nError: " << errmsg << "\n";
+            sqlite3_free(errmsg);
+        }
     }
-
     mongo::BSONObjBuilder builder;
 
     builder.append("events_per_file", config.EventsPerFile);
@@ -188,8 +191,8 @@ void DAQ::DecodeEvents(const bool which, const unsigned int iNumEvents) {
     const unsigned int iSizeMask (0xFFFFFFF);
     const int iNumBytesHeader(16);
     // each digitizer has a buffer we need to process (only 1 digitizer right now), holding NumEvents
-    std::vector<std::vector<unsigned int*> > vHeaders(iNumEvents, std::vector<unsigned int*>(1));
-    std::vector<std::vector<unsigned int*> > vBodies(iNumEvents, std::vector<unsigned int*>(1));
+    std::vector<std::vector<unsigned int*> > vHeaders(iNumEvents, std::vector<unsigned int*>());
+    std::vector<std::vector<unsigned int*> > vBodies(iNumEvents, std::vector<unsigned int*>());
     unsigned int* pHeader(nullptr);
     unsigned int* pBody(nullptr);
     m_vEvents[which].assign(iNumEvents, Event());
@@ -226,30 +229,6 @@ void DAQ::WriteToDisk(const bool which) {
     m_abWriting = false;
 }
 
-void DAQ::ReadInput() {
-    char in;
-    while (!m_abQuit) {
-        std::cin >> in;
-        switch (in) {
-            case 's' : m_abRun = !m_abRun;
-                       if (m_abRun) {
-                           dig->StartAcquisition();
-                           StartRun();
-                       } else {
-                           dig->StopAcquisition();
-                       } break;
-            case 't' : m_abTriggerNow = true; break;
-            case 'w' : m_abSaveWaveforms = !m_abSaveWaveforms;
-                       std::cout << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled\n"; break;
-            case 'T' : m_abTestRun = !m_abTestRun;
-                       std::cout << "Test run " << (m_abTestRun ? "en" : "dis") << "abled\n"; break;
-            case 'q' : m_abQuit = true; break;
-            default: break;
-        }
-        in = '\0';
-    }
-}
-
 void DAQ::Readout() {
     std::cout << "Ready to go.\n";
     std::cout << "Commands:"
@@ -257,8 +236,7 @@ void DAQ::Readout() {
               << " [t] Force trigger\n"
               << " [w] Write events to disk (otherwise discard)\n"
               << " [T] En/disable automatic runs database interfacing\n"
-              << " [q] Quit\n"
-              << " [Return] submits input\n";
+              << " [q] Quit\n";
     unsigned int iNumEvents(0), iBufferSize(0), iTotalBuffer(0), iTotalEvents(0);
     bool bWhich(false); // which buffer to use
     auto PrevPrintTime = std::chrono::system_clock::now();
@@ -266,12 +244,33 @@ void DAQ::Readout() {
     int FileRunTime;
     int OutputWidth(55);
     double dReadRate, dTrigRate, dLoopTime;
+    char input;
 
     while (!m_abQuit) {
-        while (!m_abRun) {
-            std::this_thread::yield();
+        if (kbhit()) {
+            std::cin.get(input);
+            switch(input) {
+                case 's' : m_abRun = !m_abRun;
+                if (m_abRun) {
+                    dig->StartAcquisition();
+                    StartRun();
+                } else {
+                    dig->StopAcquisition();
+                } break;
+                case 't' : m_abTriggerNow = true; break;
+                case 'w' : m_abSaveWaveforms = !m_abSaveWaveforms;
+                    std::cout << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled\n"; break;
+                case 'T' : m_abTestRun = !m_abTestRun;
+                    std::cout << "Test run " << (m_abTestRun ? "en" : "dis") << "abled\n"; break;
+                case 'q' : m_abQuit = true; break;
+                default: break;
+            }
+        }
+        if (!m_abRun) {
+            continue;
         }
         if (m_abTriggerNow) {
+            std::cout << "\nTriggering\n";
             dig->SWTrigger();
             m_abTriggerNow = false;
         }
@@ -285,7 +284,7 @@ void DAQ::Readout() {
             iTotalEvents += iNumEvents;
 
             // write to disk from the other
-            if (m_abWriting) std::cout << "\nDeadtime warning: disk output is too slow\n";
+            if (m_abWriting) std::cout << "\nDeadtime warning\n";
             if (m_WriteThread.joinable()) m_WriteThread.join();
             m_WriteThread = std::thread(&DAQ::WriteToDisk, this, !bWhich);
 
@@ -296,13 +295,13 @@ void DAQ::Readout() {
         if (dLoopTime > 1.0) {
             dReadRate = (iTotalBuffer>>20)/dLoopTime; // MB/s
             dTrigRate = iTotalEvents/dLoopTime; // Hz
-            FileRunTime = std::chrono::duration_cast<std::chrono::seconds> (ThisLoop - m_tStart).count();
+            FileRunTime = std::chrono::duration_cast<std::chrono::seconds>(ThisLoop - m_tStart).count();
             std::stringstream ss;
             ss << std::setprecision(3) << "\rStatus: " << dReadRate << " MB/s, " << dTrigRate << " Hz, "
                << std::setprecision(4) << FileRunTime << " sec, "
                << std::setprecision(6) << m_iEventsInActiveFile << "/" << m_vEventSizes.size() << " ev";
             std::cout << std::left << std::setw(OutputWidth) << ss.str() << std::flush;
-            std::cout << "| >>> " << std::flush;
+        //  std::cout << "| >>> " << std::flush;
             iTotalBuffer = 0;
             iTotalEvents = 0;
             if (FileRunTime >= 3600.) {
@@ -312,8 +311,6 @@ void DAQ::Readout() {
             }
             PrevPrintTime = std::chrono::system_clock::now();
         }
-/*        if (s_interrupted) {
-            m_abQuit = true;
-        } */
+//        break;
     }
 }
