@@ -18,7 +18,7 @@ public:
     Event();
     ~Event();
     void Decode(const std::vector<unsigned int*>& headers, const std::vector<unsigned int*>& bodies); // should handle multiple digitizers (up to 32 total channels)
-    int Write(std::ofstream& fout);
+    int Write(std::ofstream& fout, unsigned int& EvNum);
 
 private:
     std::array<unsigned int, 5> m_Header;

@@ -23,7 +23,6 @@ DAQ::DAQ() {
     m_abTestRun = true;
     m_abTriggerNow = false;
 
-    m_iEventsInActiveFile = 0;
 }
 
 DAQ::~DAQ() {
@@ -102,8 +101,12 @@ void DAQ::Setup(const std::string& filename) {
         GW.mask = std::stoi(gw["mask"].String(), nullptr, 16);
         CS.GenericWrites.push_back(GW);
     }
-
-    dig.reset(new Digitizer(link_number, conet_node, base_address));
+    try {
+        dig.reset(new Digitizer(link_number, conet_node, base_address));
+    } catch (std::exception& e) {
+        std::cout << "Could not allocate digitizer!\n" << e.what() << "\n";
+        throw DAQException();
+    }
 
     dig->ProgramDigitizer(CS);
 
@@ -112,6 +115,7 @@ void DAQ::Setup(const std::string& filename) {
 }
 
 void DAQ::StartRun() {
+    if (fout) return; // run already going
     m_tStart = std::chrono::high_resolution_clock::now(); // nanosecond precision!
     time_t rawtime;
     time(&rawtime);
@@ -122,10 +126,15 @@ void DAQ::StartRun() {
     if (m_abSaveWaveforms) {
         std::string command = "mkdir " + config.RawDataDir + config.RunName;
         int ignore = system(command.c_str());
-        ignore = 0;
+        ignore++;
         std::stringstream fullfilename;
         fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << std::setw(6) << std::setfill('0') << config.NumFiles << std::flush << ".ast";
         fout.open(fullfilename.str(), std::ofstream::binary | std::ofstream::out);
+        if (!fout.is_open()) {
+            std::cout << "Could not open " << fullfilename.str() << "\n";
+            throw DAQException();
+        }
+        m_vFileInfos.push_back(file_info{});
     }
 }
 
@@ -135,7 +144,7 @@ void DAQ::EndRun() {
     std::chrono::high_resolution_clock::time_point tEnd = std::chrono::high_resolution_clock::now();
     std::stringstream command;
     char* errmsg(nullptr);
-    if (!m_abSaveWaveforms) {
+    if (!m_abTestRun) {
         command << "INSERT INTO runs (name, start_time, end_time, runtime, events, raw_status, source) VALUES ('"
             << config.RunName << "'," << m_tStart.time_since_epoch().count() << "," << tEnd.time_since_epoch().count() << ","
             << std::chrono::duration_cast<std::chrono::duration<double>>(tEnd-m_tStart).count() << "," << m_vEventSizes.size()
@@ -148,19 +157,18 @@ void DAQ::EndRun() {
     }
     mongo::BSONObjBuilder builder;
 
-    builder.append("events_per_file", config.EventsPerFile);
     builder.append("is_zle", config.IsZLE);
     builder.append("run_name", config.RunName);
-    builder.append("num_files", config.NumFiles+1);
     builder.append("post_trigger", config.PostTrigger);
     builder.append("events", (int)m_vEventSizes.size());
+    builder.append("start_time_ns", m_tStart.time_since_epoch().count());
+    builder.append("end_time_ns", tEnd.time_since_epoch().count());
 
     std::vector<mongo::BSONObj> chan_sets;
     for (auto& cs : config.ChannelSettings) {
         mongo::BSONObjBuilder ch;
         ch.append("channel", cs.Channel);
         ch.append("enabled", cs.Enabled);
-        ch.append("dc_offset", cs.DCoffset);
         ch.append("trigger_threshold", cs.TriggerThreshold);
         ch.append("zle_threshold", cs.ZLEThreshold);
 
@@ -168,21 +176,34 @@ void DAQ::EndRun() {
     }
     builder.append("channel_settings", chan_sets);
 
+    std::vector<mongo::BSONObj> file_nos;
+    for (auto& f : m_vFileInfos) {
+        mongo::BSONObjBuilder ff;
+        ff.append("file_number", f.file_number);
+        ff.append("first_event", f.first_event);
+        ff.append("last_event", f.last_event);
+        ff.append("n_events", f.n_events);
+
+        file_nos.push_back(ff.obj());
+    }
+    builder.append("file_info", file_nos);
+
     builder.append("event_size_bytes", m_vEventSizes);
+    builder.append("event_size_cum", m_vEventSizeCum);
 
     std::stringstream ss;
-    ss << config.RawDataDir << config.RunName << "/config.json";
+    ss << config.RawDataDir << config.RunName << "/pax_info.json";
     std::ofstream fheader(ss.str(), std::ofstream::out);
     if (!fheader.is_open()) {
         std::cout << "Could not open file header: " << ss.str() << "\n";
         throw DAQException();
     }
-    fheader << tojson(builder.obj());
+    fheader << tojson(builder.obj(), Strict, true);
     fheader.close();
 
     m_vEventSizes.clear();
-    m_iEventsInActiveFile = 0;
-    config.NumFiles = 0;
+    m_vFileInfos.clear();
+    m_vEventSizeCum.clear();
 
     // Reset digitizer timestamps?
 }
@@ -213,18 +234,30 @@ void DAQ::DecodeEvents(const bool which, const unsigned int iNumEvents) {
 void DAQ::WriteToDisk(const bool which) {
     m_abWriting = true;
     int NumBytes(0);
+    unsigned int EvNum(0);
     for (auto& event : m_vEvents[which]) {
-        if (m_iEventsInActiveFile >= config.EventsPerFile) {
+        if (m_vFileInfos.back().n_events >= config.EventsPerFile) {
             fout.close();
-            config.NumFiles++;
+            m_vFileInfos.push_back(file_info{});
             std::stringstream ss;
-            ss << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << std::setw(6) << std::setfill('0') << config.NumFiles << std::flush << ".ast";
+            ss << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << std::setw(6) << std::setfill('0') << m_vFileInfos.size() << std::flush << ".ast";
             fout.open(ss.str(), std::ofstream::binary | std::ofstream::out);
-            m_iEventsInActiveFile = 0;
+            m_vFileInfos.back().file_number = m_vFileInfos.size();
         }
-        NumBytes = event.Write(fout);
+        NumBytes = event.Write(fout, EvNum);
         m_vEventSizes.push_back(NumBytes);
-        m_iEventsInActiveFile++;
+
+        if (m_vFileInfos.back().n_events == 0) {
+            m_vFileInfos.back().first_event = EvNum;
+            m_vEventSizeCum.push_back(0);
+        } else if (m_vFileInfos.back().n_events == config.EventsPerFile-1) {
+            m_vFileInfos.back().last_event = EvNum;
+            m_vEventSizeCum.push_back(m_vEventSizeCum.back() + NumBytes);
+        } else {
+            m_vEventSizeCum.push_back(m_vEventSizeCum.back() + NumBytes);
+        }
+
+        m_vFileInfos.back().n_events++;
     }
     m_abWriting = false;
 }
@@ -237,7 +270,7 @@ void DAQ::Readout() {
               << " [w] Write events to disk (otherwise discard)\n"
               << " [T] En/disable automatic runs database interfacing\n"
               << " [q] Quit\n";
-    unsigned int iNumEvents(0), iBufferSize(0), iTotalBuffer(0), iTotalEvents(0);
+    unsigned int iNumEvents(0), iBufferSize(0), iTotalBuffer(0), iTotalEvents(0), iLoopCount(0);
     bool bWhich(false); // which buffer to use
     auto PrevPrintTime = std::chrono::system_clock::now();
     std::chrono::system_clock::time_point ThisLoop;
@@ -310,7 +343,6 @@ void DAQ::Readout() {
                 StartRun();
             }
             PrevPrintTime = std::chrono::system_clock::now();
-        }
-//        break;
-    }
-}
+        } // print loop
+    } // run loop
+} // Readout()

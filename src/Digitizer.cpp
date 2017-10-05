@@ -15,7 +15,6 @@ Digitizer::Digitizer(int LinkNumber, int ConetNode, int BaseAddress) {
         std::cout << "Connected to the wrong digitizer type!\n";
         throw DigitizerException();
     }
-
 }
 
 Digitizer::~Digitizer() {
@@ -85,10 +84,6 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
         if (ret != CAEN_DGTZ_Success) std::cout << "Error with register write\n";
     }
 
-    if (ret != CAEN_DGTZ_Success)
-        std::cout << "Board " << m_iHandle << " reports some errors in programming\n";
-
-    ret = CAEN_DGTZ_Success;
     for (auto& buffer : buffers) ret = CAEN_DGTZ_MallocReadoutBuffer(m_iHandle, &buffer, &AllocSize);
 
     if (ret != CAEN_DGTZ_Success) {

@@ -55,9 +55,9 @@ private:
     std::string m_sRunName;
     std::string m_sRunPath;
     int m_iFileCounter;
-    std::atomic<int> m_iEventsInActiveFile;
-    std::atomic<int> m_iEventsInRun;
     std::vector<unsigned int> m_vEventSizes;
+    std::vector<file_info> m_vFileInfos;
+    std::vector<unsigned int> m_vEventSizeCum;
 
     bool m_bWhich;
     std::array<const char*, 2> buffers; // make vector
@@ -70,10 +70,16 @@ private:
         int IsZLE;
         std::string RawDataDir;
         std::string RunName;
-        int NumFiles;
         std::vector<ChannelSettings_t> ChannelSettings;
         int PostTrigger;
     } config;
+
+    struct {
+        unsigned int file_number;
+        unsigned int first_event;
+        unsigned int last_event;
+        unsigned int n_events;
+    } file_info;
 };
 
 #endif // _DAQ_H_ defined

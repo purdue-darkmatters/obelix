@@ -50,8 +50,9 @@ void Event::Decode(const std::vector<unsigned int*>& headers, const std::vector<
     m_Header[4] = lTimestamp & (0xFFFFFFFFl);
 }
 
-int Event::Write(std::ofstream& fout) {
+int Event::Write(std::ofstream& fout, unsigned int& EvNum) {
     fout.write((char*)m_Header.data(), m_Header.size()*4);
     fout.write(m_Body.data(), m_Body.size());
+    EvNum = m_Header[0];
     return m_Header[2] & 0x7FFFFFFF;
 }
