@@ -18,7 +18,9 @@
 #include <cctype>
 #include <chrono>
 
-class DAQException : public std::exception {
+using file_info = array<unsigned int, 4>;
+
+class DAQException : public exception {
 public:
     const char* what() const throw () {
         return "DAQ error";
@@ -29,7 +31,7 @@ class DAQ {
 public:
     DAQ();
     ~DAQ();
-    void Setup(const std::string& filename);
+    void Setup(const string& filename);
     void Readout();
 
 private:
@@ -39,47 +41,44 @@ private:
     void WriteToDisk(const bool which);
     void DoesNothing() {}; // for creation of threads
 
-    std::atomic<bool> m_abRun;
-    std::atomic<bool> m_abQuit;
-    std::atomic<bool> m_abTriggerNow;
-    std::atomic<bool> m_abSaveWaveforms;
-    std::atomic<bool> m_abTestRun;
+    bool m_bSaveWaveforms;
+    bool m_bTestRun;
 
-    std::ofstream fout;
+    ofstream fout;
     sqlite3* m_RunsDB;
-    std::unique_ptr<Digitizer> dig; // make vector
-    std::array<std::thread, 2> m_DecodeThread;
-    std::thread m_WriteThread;
+    unique_ptr<Digitizer> dig; // make vector
+    array<thread, 2> m_DecodeThread;
+    thread m_WriteThread;
 
-    std::chrono::high_resolution_clock::time_point m_tStart;
-    std::string m_sRunName;
-    std::string m_sRunPath;
+    chrono::high_resolution_clock::time_point m_tStart;
+    string m_sRunName;
+    string m_sRunPath;
     int m_iFileCounter;
-    std::vector<unsigned int> m_vEventSizes;
-    std::vector<file_info> m_vFileInfos;
-    std::vector<unsigned int> m_vEventSizeCum;
+    vector<unsigned int> m_vEventSizes;
+    vector<file_info> m_vFileInfos; // file_number, first_event, last_event, n_events
+    vector<unsigned int> m_vEventSizeCum;
 
     bool m_bWhich;
-    std::array<const char*, 2> buffers; // make vector
-    std::atomic<bool> m_abWriting;
-    std::array<std::vector<Event>, 2> m_vEvents;
+    array<const char*, 2> buffers; // make vector
+    atomic<bool> m_abWriting;
+    array<vector<Event>, 2> m_vEvents;
 
     mongo::BSONObj config_dict;
     struct {
         int EventsPerFile;
         int IsZLE;
-        std::string RawDataDir;
-        std::string RunName;
-        std::vector<ChannelSettings_t> ChannelSettings;
+        string RawDataDir;
+        string RunName;
+        vector<ChannelSettings_t> ChannelSettings;
         int PostTrigger;
     } config;
 
-    struct {
-        unsigned int file_number;
-        unsigned int first_event;
-        unsigned int last_event;
-        unsigned int n_events;
-    } file_info;
+    enum file_info_vals {
+        file_number = 0,
+        first_event,
+        last_event,
+        n_events,
+    };
 };
 
 #endif // _DAQ_H_ defined

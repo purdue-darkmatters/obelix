@@ -17,12 +17,12 @@ class Event {
 public:
     Event();
     ~Event();
-    void Decode(const std::vector<unsigned int*>& headers, const std::vector<unsigned int*>& bodies); // should handle multiple digitizers (up to 32 total channels)
-    int Write(std::ofstream& fout, unsigned int& EvNum);
+    void Decode(const vector<WORD*>& headers, const vector<WORD*>& bodies); // should handle multiple digitizers (up to 32 total channels)
+    int Write(ofstream& fout, unsigned int& EvNum);
 
 private:
-    std::array<unsigned int, 5> m_Header;
-    std::vector<char> m_Body;
+    array<WORD, 5> m_Header;
+    vector<char> m_Body;
 
     static int s_TimestampRollovers;
     static long s_LastTimestamp;

@@ -15,15 +15,16 @@
 #include <stdexcept>
 #include <exception>
 
-//using namespace std;
+using namespace std;
+using WORD = unsigned int;
 
-const std::string runs_db_addr("/depot/darkmatter/apps/asterix/asterix_runs_db.db");
-const std::string config_dir("/depot/darkmatter/apps/asterix/obelix/config/");
+const string runs_db_addr("/depot/darkmatter/apps/asterix/asterix_runs_db.db");
+const string config_dir("/depot/darkmatter/apps/asterix/obelix/config/");
 
 struct GW_t {
-    unsigned int addr;
-    unsigned int data;
-    unsigned int mask;
+    WORD addr;
+    WORD data;
+    WORD mask;
 };
 
 struct ChannelSettings_t {
@@ -40,11 +41,11 @@ struct ConfigSettings_t {
     unsigned int PostTrigger;
     unsigned int EnableMask;
     unsigned int BlockTransfer;
-    CAEN_DGTZ_IOLevel_t FPIOLevel;
+    CAEN_DGTZ_IOLevel_t FPIO;
     CAEN_DGTZ_TriggerMode_t ExtTriggerMode;
     CAEN_DGTZ_TriggerMode_t ChTriggerMode;
-    std::vector<ChannelSettings_t> ChannelSettings;
-    std::vector<GW_t> GenericWrites;
+    vector<ChannelSettings_t> ChannelSettings;
+    vector<GW_t> GenericWrites;
 };
 
 #endif // _BASE_H_ defined

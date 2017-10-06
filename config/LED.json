@@ -19,26 +19,21 @@
     "block_transfer" :
     {
         "value" : 128,
-        "comment" : "number of events to readout at once. Must be smaller than number of events stored on digitizer"
+        "comment" : "number of events to readout at once. Must be smaller than max number of events stored on digitizer"
     },
     "post_trigger" :
     {
         "value" : 80,
         "comment" : "percentage of event after trigger"
     },
-    "trigger_edge" :
-    {
-        "value" : "falling",
-        "comment" : "options are 'falling' or 'rising'"
-    },
     "fpio_level" :
     {
         "value" : "ttl",
-        "comment" : "options are 'ttl' or 'nim'. 'nim' doesn't seem to work"
+        "comment" : "options are 'ttl' or 'nim'. 'nim' doesn't seem to work?"
     },
     "events_per_file" :
     {
-        "value" : 10000,
+        "value" : 100000,
         "comment" : "number of events per raw data file"
     },
     "is_zle" :
@@ -61,7 +56,7 @@
             "board" : 0,
             "channel" : 0,
             "enabled" : 1,
-            "dc_offset" : -45,
+            "dc_offset" : -47,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000
         },

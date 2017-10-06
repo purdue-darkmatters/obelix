@@ -8,17 +8,17 @@ Event::Event() {}
 
 Event::~Event() {}
 
-void Event::Decode(const std::vector<unsigned int*>& headers, const std::vector<unsigned int*>& bodies) {
-    std::vector<unsigned int> EventSizes, ChannelMasks, BoardIDs;
+void Event::Decode(const vector<WORD*>& headers, const vector<WORD*>& bodies) {
+    vector<unsigned int> EventSizes, ChannelMasks, BoardIDs;
     unsigned long lTimestamp(0);
     unsigned int iEventCounter(0), iTimestamp(0);
     bool bIsZLE(false);
     unsigned int iEventChannelMask(0);
-    int iNumWordsBody = 0;
+    int iNumWordsBody(0), iNumWordsHeader(4);
     int iNumBytesEvent(0), iNumBytesBody(0);
     for (auto& header : headers) {
         EventSizes.push_back(header[0] & s_EventSizeMask);
-        iNumWordsBody += (EventSizes.back() - 4);
+        iNumWordsBody += (EventSizes.back() - iNumWordsHeader);
         BoardIDs.push_back((header[1] & s_BoardIDMask) >> s_BoardIDShift);
         ChannelMasks.push_back(header[1] & s_ChannelMaskMask);
         iEventCounter = header[2] & s_CounterMask;
@@ -29,13 +29,13 @@ void Event::Decode(const std::vector<unsigned int*>& headers, const std::vector<
     lTimestamp = iTimestamp + s_TimestampRollovers * s_TimestampOffset;
     s_LastTimestamp = iTimestamp;
     for (unsigned i = 0; i < ChannelMasks.size(); i++) iEventChannelMask |= (ChannelMasks[i] << (NUM_CH*BoardIDs[i]));
-    iNumBytesBody = iNumWordsBody * 4;
-    iNumBytesEvent = iNumBytesBody + m_Header.size()*4;
+    iNumBytesBody = iNumWordsBody * sizeof(WORD);
+    iNumBytesEvent = iNumBytesBody + m_Header.size()*sizeof(WORD);
 
     try {
         m_Body.resize(iNumBytesBody);
-    } catch (std::exception& e) {
-        throw std::bad_alloc();
+    } catch (exception& e) {
+        throw bad_alloc();
     }
     char* cPtr(m_Body.data());
     for (unsigned i = 0; i < headers.size(); i++) {
@@ -50,8 +50,8 @@ void Event::Decode(const std::vector<unsigned int*>& headers, const std::vector<
     m_Header[4] = lTimestamp & (0xFFFFFFFFl);
 }
 
-int Event::Write(std::ofstream& fout, unsigned int& EvNum) {
-    fout.write((char*)m_Header.data(), m_Header.size()*4);
+int Event::Write(ofstream& fout, unsigned int& EvNum) {
+    fout.write((char*)m_Header.data(), m_Header.size()*sizeof(WORD));
     fout.write(m_Body.data(), m_Body.size());
     EvNum = m_Header[0];
     return m_Header[2] & 0x7FFFFFFF;
