@@ -8,7 +8,6 @@
 #include "mongo/bson/bson.h"
 
 #include <thread>
-#include <atomic>
 #include <mutex>
 
 #include <ctime>
@@ -43,6 +42,7 @@ private:
 
     bool m_bSaveWaveforms;
     bool m_bTestRun;
+    atomic<bool> m_abIsFirstEvent;
 
     ofstream fout;
     sqlite3* m_RunsDB;

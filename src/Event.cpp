@@ -3,12 +3,14 @@
 
 int Event::s_TimestampRollovers = 0;
 long Event::s_LastTimestamp = 0;
+long Event::s_FirstEventTimestamp = 0;
+atomic<long> Event::s_UnixTSStart;
 
 Event::Event() {}
 
 Event::~Event() {}
 
-void Event::Decode(const vector<WORD*>& headers, const vector<WORD*>& bodies) {
+void Event::Decode(const vector<WORD*>& headers, const vector<WORD*>& bodies, bool IsFirstEvent) {
     vector<unsigned int> EventSizes, ChannelMasks, BoardIDs;
     unsigned long lTimestamp(0);
     unsigned int iEventCounter(0), iTimestamp(0);
@@ -25,9 +27,11 @@ void Event::Decode(const vector<WORD*>& headers, const vector<WORD*>& bodies) {
         bIsZLE = header[1] & s_ZLEMask;
         iTimestamp = header[3];
     }
-    if (iTimestamp < s_LastTimestamp) s_TimestampRollovers++;
+    if (IsFirstEvent) Event::s_FirstEventTimestamp = iTimestamp;
+    if (iTimestamp < s_LastTimestamp) s_TimestampRollovers++; // CAEN timestamp rolls over every 43 seconds
     lTimestamp = iTimestamp + s_TimestampRollovers * s_TimestampOffset;
     s_LastTimestamp = iTimestamp;
+    lTimestamp = s_UnixTSStart + (lTimestamp - Event::s_FirstEventTimestamp)*s_NsPerTriggerClock;
     for (unsigned i = 0; i < ChannelMasks.size(); i++) iEventChannelMask |= (ChannelMasks[i] << (NUM_CH*BoardIDs[i]));
     iNumBytesBody = iNumWordsBody * sizeof(WORD);
     iNumBytesEvent = iNumBytesBody + m_Header.size()*sizeof(WORD);
@@ -55,4 +59,8 @@ int Event::Write(ofstream& fout, unsigned int& EvNum) {
     fout.write(m_Body.data(), m_Body.size());
     EvNum = m_Header[0];
     return m_Header[2] & 0x7FFFFFFF;
+}
+
+void Event::SetUnixTS(long ts) {
+    Event::s_UnixTSStart = ts;
 }

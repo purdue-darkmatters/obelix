@@ -115,6 +115,8 @@ void DAQ::Setup(const string& filename) {
 void DAQ::StartRun() {
     if (fout.is_open()) return; // run already going
     m_tStart = chrono::high_resolution_clock::now(); // nanosecond precision!
+    Event::SetUnixTS(m_tStart.time_since_epoch().count());
+    m_abIsFirstEvent = true;
     time_t rawtime;
     time(&rawtime);
     char temp[32];
@@ -122,22 +124,23 @@ void DAQ::StartRun() {
     config.RunName = temp;
     cout << "\nStarting run " << config.RunName << "\n";
     if (m_bSaveWaveforms) {
+        m_vFileInfos.push_back(file_info{0,0,0,0});
         string command = "mkdir " + config.RawDataDir + config.RunName;
         int ignore = system(command.c_str());
         ignore++;
         stringstream fullfilename;
-        fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size() << flush << ".ast";
+        fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
         fout.open(fullfilename.str(), ofstream::binary | ofstream::out);
         if (!fout.is_open()) {
             cout << "Could not open " << fullfilename.str() << "\n";
             throw DAQException();
         }
-        m_vFileInfos.push_back(file_info{0,0,0,0});
     }
 }
 
 void DAQ::EndRun() {
     cout << "\nEnding run " << config.RunName << "\n";
+    if (!fout.is_open()) return;
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
     stringstream command;
@@ -207,7 +210,7 @@ void DAQ::EndRun() {
 }
 
 void DAQ::DecodeEvents(const bool which, const unsigned int iNumEvents) {
-    const unsigned int iSizeMask (0xFFFFFF);
+    const unsigned int iSizeMask (0xFFFFFFF);
     const int iNumBytesHeader(4 * sizeof(WORD));
     // each digitizer has a buffer we need to process (only 1 digitizer right now), holding NumEvents
     vector<vector<WORD*> > vHeaders;
@@ -220,14 +223,15 @@ void DAQ::DecodeEvents(const bool which, const unsigned int iNumEvents) {
     for (unsigned i = 0; i < iNumEvents; i++) {
         vHeaders.push_back(vector<WORD*>());
         vBodies.push_back(vector<WORD*>());
+        // for digitizer in digitizers
         iWordsInThisEvent = iSizeMask & *(WORD*)(buffers[which] + offset);
         pHeader = (WORD*)(buffers[which] + offset);
         pBody = (WORD*)(buffers[which] + offset + iNumBytesHeader);
         vHeaders.back().push_back(pHeader);
         vBodies.back().push_back(pBody);
-        // add headers and bodies from other buffers
         offset += iWordsInThisEvent * sizeof(WORD);
-        m_vEvents[which][i].Decode(vHeaders.back(), vBodies.back());
+        m_vEvents[which][i].Decode(vHeaders.back(), vBodies.back(), m_abIsFirstEvent);
+        m_abIsFirstEvent = false;
     }
 }
 
@@ -240,9 +244,9 @@ void DAQ::WriteToDisk(const bool which) {
             fout.close();
             m_vFileInfos.push_back(file_info{});
             stringstream ss;
-            ss << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size() << flush << ".ast";
+            ss << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
             fout.open(ss.str(), ofstream::binary | ofstream::out);
-            m_vFileInfos.back()[file_number] = m_vFileInfos.size();
+            m_vFileInfos.back()[file_number] = m_vFileInfos.size()-1;
         }
         NumBytes = event.Write(fout, EvNum);
         m_vEventSizes.push_back(NumBytes);

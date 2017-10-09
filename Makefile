@@ -16,8 +16,7 @@ VPATH = src:inc
 exe : $(objects)
 	$(CC) $(CPPFLAGS) -o $(EXE) $(objects) $(LDFLAGS)
 
-install : exe
-	$(CHMOD) $(EXE)
+install :
 	$(INSTALL)
 
 $(L)%.o : %.cpp %.h %.d
