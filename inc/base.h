@@ -33,6 +33,7 @@ struct ChannelSettings_t {
     unsigned int DCoffset;
     unsigned int TriggerThreshold;
     unsigned int ZLEThreshold;
+    int PrePostSamples;
     CAEN_DGTZ_TriggerMode_t TriggerMode;
 };
 
@@ -41,6 +42,7 @@ struct ConfigSettings_t {
     unsigned int PostTrigger;
     unsigned int EnableMask;
     unsigned int BlockTransfer;
+    bool IsZLE;
     CAEN_DGTZ_IOLevel_t FPIO;
     CAEN_DGTZ_TriggerMode_t ExtTriggerMode;
     CAEN_DGTZ_TriggerMode_t ChTriggerMode;

@@ -64,6 +64,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
+		"prepost_samples" : 10,
 		},
 		{
 		"board" : 0,
@@ -72,6 +73,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
+		"prepost_samples" : 10,
 		},
 		{
 		"board" : 0,
@@ -80,6 +82,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
+		"prepost_samples" : 10,
 		},
 		{
 		"board" : 0,
@@ -88,6 +91,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
+		"prepost_samples" : 10,
 		},
 		{
 		"board" : 0,
@@ -96,6 +100,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
+		"prepost_samples" : 10,
 		},
 		{
 		"board" : 0,
@@ -104,6 +109,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
+		"prepost_samples" : 10,
 		},
 		{
 		"board" : 0,
@@ -112,6 +118,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
+		"prepost_samples" : 10,
 		},
 		{
 		"board" : 0,
@@ -120,23 +127,10 @@
 		"dc_offset" : 0,
 		"trigger_threshold" : 0,
 		"zle_threshld" : 0,
+		"prepost_samples" : 10,
 		},
 	],
 	"registers" : [
-		{
-		"board" : 0,
-		"register" : "0x8028",
-		"data" : "0x0",
-		"mask" : "0xFFFFFFFF",
-		"comment" : "ZLE pre/post trigger samples, p11"
-		},
-		{
-		"board" : 0,
-		"register" : "0x8000",
-		"data" : "0x20040",
-		"mask" : "0xF0042",
-		"comment" : "Board config, p17. Overlapping triggers, zero-suppression, and trigger polarity"
-		},
 		{
 		"board" : 0,
 		"register" : "0x810C",

@@ -1,33 +1,45 @@
 #include "DAQ.h"
+#include "kbhit.h"
 
 #include <sstream>
 #include <iomanip>
 #include "mongo/db/json.h"
 #include "mongo/bson/bson.h"
-#include "kbhit.h"
 
-DAQ::DAQ() {
+DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     int rc = sqlite3_open_v2(runs_db_addr.c_str(), &m_RunsDB, SQLITE_OPEN_READWRITE, NULL);
     if (rc != SQLITE_OK) {
         cout << "Could not connect to runs database\nSQLITE complains with error " << sqlite3_errmsg(m_RunsDB) << "\n";
         throw DAQException();
     }
     m_WriteThread = thread(&DAQ::DoesNothing, this);
-    m_DecodeThread[0] = thread(&DAQ::DoesNothing, this);
-    m_DecodeThread[1] = thread(&DAQ::DoesNothing, this);
 
-    m_bSaveWaveforms = false;
-    m_abWriting = false;
+    try {
+        m_vBuffer.assign(BufferLength, Event());
+    } catch (exception& e) {
+        cout << "Could not allocate memory for " << BufferLength << " events!\n";
+        throw bad_alloc();
+    }
+
+    m_iInsertPtr = 0;
+    m_iDecodePtr = 0;
+    m_iWritePtr = 0;
+
+    m_iToDecode = 0;
+    m_iToWrite = 0;
+
+    m_abSaveWaveforms = false;
     m_bTestRun = true;
 
     m_tStart = chrono::high_resolution_clock::now();
+    Event::SetUnixTS(m_tStart.time_since_epoch().count());
 }
 
 DAQ::~DAQ() {
-    for (auto& th : m_DecodeThread) if (th.joinable()) th.join();
+    for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
     if (m_WriteThread.joinable()) m_WriteThread.join();
     EndRun();
-    dig.reset();
+    for (auto& dig : digis) dig.reset();
     sqlite3_close_v2(m_RunsDB);
     m_RunsDB = nullptr;
     cout << "\nShutting down DAQ\n";
@@ -54,66 +66,88 @@ void DAQ::Setup(const string& filename) {
     }
     // will need some more values in config json about board numbers
     ConfigSettings_t CS;
-    CS.RecordLength = config_dict["record_length"]["value"].Int();
-    CS.PostTrigger = config_dict["post_trigger"]["value"].Int();
-    CS.BlockTransfer = config_dict["block_transfer"]["value"].Int();
-    config.EventsPerFile = config_dict["events_per_file"]["value"].Int();
-    temp = config_dict["is_zle"]["value"].String();
-    if (temp == "no") config.IsZLE = 0;
-    else if (temp == "yes") config.IsZLE = 1;
-    else cout << "Invalid ZLE config setting: " << temp << "\n";
-
-    config.RawDataDir = config_dict["raw_data_dir"]["value"].String();
-    link_number = config_dict["digitizers"]["link_number"].Int();
-    conet_node = config_dict["digitizers"]["conet_node"].Int();
-    base_address = config_dict["digitizers"]["base_address"].Int();
-
-    temp = config_dict["external_trigger"]["value"].String();
-    if (temp == "acquisition_only") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_ONLY;
-    else if (temp == "acquisition_and_trgout") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
-    else if (temp == "disabled") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
-    else if (temp == "trgout_only") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_EXTOUT_ONLY;
-    else cout << "Invalid external trigger value: " << temp << "\n";
-
-    temp = config_dict["channel_trigger"]["value"].String();
-    if (temp == "acquisition_only") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_ONLY;
-    else if (temp == "acquisition_and_trgout") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
-    else if (temp == "disabled") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
-    else cout << "Invalid channel trigger value: " << temp << "\n";
-
-    for (auto& cs : config_dict["channels"].Array()) {
-        ChanSet.Channel = cs["channel"].Int();
-        ChanSet.Enabled = cs["enabled"].Int();
-        ChanSet.DCoffset = (cs["dc_offset"].Int() + 50) * 65535/100;
-        ChanSet.TriggerThreshold = cs["trigger_threshold"].Int();
-        ChanSet.TriggerMode = CS.ChTriggerMode;
-        ChanSet.ZLEThreshold = cs["zle_threshold"].Int();
-        if (ChanSet.Enabled) CS.EnableMask |= (1 << ChanSet.Channel);
-        CS.ChannelSettings.push_back(ChanSet);
-        config.ChannelSettings.push_back(ChanSet);
+    try {
+        CS.RecordLength = config_dict["record_length"]["value"].Int();
+        CS.PostTrigger = config_dict["post_trigger"]["value"].Int();
+        CS.BlockTransfer = config_dict["block_transfer"]["value"].Int();
+        config.EventsPerFile = config_dict["events_per_file"]["value"].Int();
+        temp = config_dict["is_zle"]["value"].String();
+        if (temp == "no") CS.IsZLE = config.IsZLE = 0;
+        else if (temp == "yes") CS.IsZLE = config.IsZLE = 1;
+        else cout << "Invalid ZLE config setting: " << temp << "\n";
+    } catch (...) {
+        cout << "Missing config file entry in block 1\n";
+        throw DAQException();
     }
 
-    for (auto& gw : config_dict["registers"].Array()) {
-        GW.addr = stoi(gw["register"].String(), nullptr, 16);
-        GW.data = stoi(gw["data"].String(), nullptr, 16);
-        GW.mask = stoi(gw["mask"].String(), nullptr, 16);
-        CS.GenericWrites.push_back(GW);
+    try {
+        config.RawDataDir = config_dict["raw_data_dir"]["value"].String();
+        link_number = config_dict["digitizers"]["link_number"].Int();
+        conet_node = config_dict["digitizers"]["conet_node"].Int();
+        base_address = config_dict["digitizers"]["base_address"].Int();
+
+        temp = config_dict["external_trigger"]["value"].String();
+        if (temp == "acquisition_only") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_ONLY;
+        else if (temp == "acquisition_and_trgout") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
+        else if (temp == "disabled") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
+        else if (temp == "trgout_only") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_EXTOUT_ONLY;
+        else cout << "Invalid external trigger value: " << temp << "\n";
+
+        temp = config_dict["channel_trigger"]["value"].String();
+        if (temp == "acquisition_only") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_ONLY;
+        else if (temp == "acquisition_and_trgout") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
+        else if (temp == "disabled") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
+        else cout << "Invalid channel trigger value: " << temp << "\n";
+    } catch (...) {
+        cout << "Missing config file entry in block 2\n";
+        throw DAQException();
+    }
+
+    try {
+        CS.EnableMask = 0;
+        for (auto& cs : config_dict["channels"].Array()) {
+            ChanSet.Channel = cs["channel"].Int();
+            ChanSet.Enabled = cs["enabled"].Int();
+            ChanSet.DCoffset = (cs["dc_offset"].Int() + 50) * 65535/100;
+            ChanSet.TriggerThreshold = cs["trigger_threshold"].Int();
+            ChanSet.TriggerMode = CS.ChTriggerMode;
+            ChanSet.ZLEThreshold = cs["zle_threshold"].Int();
+            if (ChanSet.Enabled) CS.EnableMask |= (1 << ChanSet.Channel);
+            CS.ChannelSettings.push_back(ChanSet);
+            config.ChannelSettings.push_back(ChanSet);
+        }
+
+        for (auto& gw : config_dict["registers"].Array()) {
+            GW.addr = stoi(gw["register"].String(), nullptr, 16);
+            GW.data = stoi(gw["data"].String(), nullptr, 16);
+            GW.mask = stoi(gw["mask"].String(), nullptr, 16);
+            CS.GenericWrites.push_back(GW);
+        }
+    } catch (...) {
+        cout << "Missing config file entry in block 3\n";
+        throw DAQException();
     }
     try {
-        dig.reset(new Digitizer(link_number, conet_node, base_address));
+        digis.push_back(unique_ptr<Digitizer>(new Digitizer(link_number, conet_node, base_address)));
     } catch (exception& e) {
         cout << "Could not allocate digitizer!\n" << e.what() << "\n";
         throw DAQException();
     }
 
-    dig->ProgramDigitizer(CS);
+    for (auto& dig : digis) {
+        dig->ProgramDigitizer(CS);
+        buffers.push_back(dig->GetBuffer());
+    }
+    try {
+        for (int i = 0; i < config_dict["decode_threads"]["value"].Int(); i++) m_DecodeThreads.push_back(thread(&DAQ::DoesNothing, this));
+    } catch (exception& e) {
+        cout << "Error starting decode threads\n" << e.what() << "\n";
+        throw DAQException();
+    }
 
-    buffers[0] = dig->GetBuffer(0);
-    buffers[1] = dig->GetBuffer(1);
 }
 
 void DAQ::StartRun() {
-    if (fout.is_open()) return; // run already going
     m_tStart = chrono::high_resolution_clock::now(); // nanosecond precision!
     Event::SetUnixTS(m_tStart.time_since_epoch().count());
     m_abIsFirstEvent = true;
@@ -123,11 +157,10 @@ void DAQ::StartRun() {
     strftime(temp, sizeof(temp), "%Y%m%d_%H%M", localtime(&rawtime));
     config.RunName = temp;
     cout << "\nStarting run " << config.RunName << "\n";
-    if (m_bSaveWaveforms) {
+    if (m_abSaveWaveforms) {
         m_vFileInfos.push_back(file_info{0,0,0,0});
         string command = "mkdir " + config.RawDataDir + config.RunName;
-        int ignore = system(command.c_str());
-        ignore++;
+        system(command.c_str());
         stringstream fullfilename;
         fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
         fout.open(fullfilename.str(), ofstream::binary | ofstream::out);
@@ -139,8 +172,10 @@ void DAQ::StartRun() {
 }
 
 void DAQ::EndRun() {
-    cout << "\nEnding run " << config.RunName << "\n";
     if (!fout.is_open()) return;
+    cout << "\nEnding run " << config.RunName << "\n";
+    for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
+    if (m_WriteThread.joinable()) m_WriteThread.join();
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
     stringstream command;
@@ -209,61 +244,15 @@ void DAQ::EndRun() {
     // Reset digitizer timestamps?
 }
 
-void DAQ::DecodeEvents(const bool which, const unsigned int iNumEvents) {
-    const unsigned int iSizeMask (0xFFFFFFF);
-    const int iNumBytesHeader(4 * sizeof(WORD));
-    // each digitizer has a buffer we need to process (only 1 digitizer right now), holding NumEvents
-    vector<vector<WORD*> > vHeaders;
-    vector<vector<WORD*> > vBodies;
-    WORD* pHeader(nullptr);
-    WORD* pBody(nullptr);
-    m_vEvents[which].assign(iNumEvents, Event());
-    int offset(0);
-    unsigned int iWordsInThisEvent(0);
-    for (unsigned i = 0; i < iNumEvents; i++) {
-        vHeaders.push_back(vector<WORD*>());
-        vBodies.push_back(vector<WORD*>());
-        // for digitizer in digitizers
-        iWordsInThisEvent = iSizeMask & *(WORD*)(buffers[which] + offset);
-        pHeader = (WORD*)(buffers[which] + offset);
-        pBody = (WORD*)(buffers[which] + offset + iNumBytesHeader);
-        vHeaders.back().push_back(pHeader);
-        vBodies.back().push_back(pBody);
-        offset += iWordsInThisEvent * sizeof(WORD);
-        m_vEvents[which][i].Decode(vHeaders.back(), vBodies.back(), m_abIsFirstEvent);
-        m_abIsFirstEvent = false;
-    }
-}
-
-void DAQ::WriteToDisk(const bool which) {
-    m_abWriting = true;
-    int NumBytes(0);
-    unsigned int EvNum(0);
-    for (auto& event : m_vEvents[which]) {
-        if (m_vFileInfos.back()[n_events] >= config.EventsPerFile) {
-            fout.close();
-            m_vFileInfos.push_back(file_info{});
-            stringstream ss;
-            ss << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
-            fout.open(ss.str(), ofstream::binary | ofstream::out);
-            m_vFileInfos.back()[file_number] = m_vFileInfos.size()-1;
-        }
-        NumBytes = event.Write(fout, EvNum);
-        m_vEventSizes.push_back(NumBytes);
-
-        if (m_vFileInfos.back()[n_events] == 0) {
-            m_vFileInfos.back()[first_event] = EvNum;
-            m_vEventSizeCum.push_back(0);
-        } else if (m_vFileInfos.back()[n_events] == config.EventsPerFile-1) {
-            m_vFileInfos.back()[last_event] = EvNum;
-            m_vEventSizeCum.push_back(m_vEventSizeCum.back() + NumBytes);
-        } else {
-            m_vEventSizeCum.push_back(m_vEventSizeCum.back() + NumBytes);
-        }
-
-        m_vFileInfos.back()[n_events]++;
-    }
-    m_abWriting = false;
+void DAQ::StartAcquisition() {
+    for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
+    if (m_WriteThread.joinable()) m_WriteThread.join();
+    digis.front()->StartAcquisition(); // signal propagates
+    m_abRun = true;
+    ResetPointers();
+    for (auto& th : m_DecodeThreads) th = thread(&DAQ::DecodeEvent, this);
+    m_WriteThread = thread(&DAQ::WriteEvent, this);
+    m_abIsFirstEvent = true;
 }
 
 void DAQ::Readout() {
@@ -275,8 +264,7 @@ void DAQ::Readout() {
               << " [T] En/disable automatic runs database interfacing\n"
               << " [q] Quit\n";
     unsigned int iNumEvents(0), iBufferSize(0), iTotalBuffer(0), iTotalEvents(0);
-    bool bWhich(false); // which buffer to use
-    bool bTriggerNow(false), bQuit(false), bRun(false);
+    bool bTriggerNow(false), bQuit(false);
     auto PrevPrintTime = chrono::system_clock::now();
     chrono::system_clock::time_point ThisLoop;
     int FileRunTime(0);
@@ -288,52 +276,57 @@ void DAQ::Readout() {
         if (kbhit()) {
             cin.get(input);
             switch(input) {
-                case 's' : bRun = !bRun;
-                if (bRun) {
-                    dig->StartAcquisition();
-                    if (m_bSaveWaveforms) StartRun();
-                } else {
-                    dig->StopAcquisition();
-                } break;
-                case 't' : bTriggerNow = true; break;
-                case 'w' : m_bSaveWaveforms = !m_bSaveWaveforms;
-                    cout << "Writing to disk " << (m_bSaveWaveforms ? "en" : "dis") << "abled\n";
-                    if ((m_bSaveWaveforms) && (bRun)) StartRun();
+                case 's' :
+                    m_abRun = !m_abRun;
+                    if (m_abRun) {
+                        StartAcquisition();
+                    } else {
+                        digis.front()->StopAcquisition();
+                    } break;
+                case 't' :
+                    bTriggerNow = true;
                     break;
-                case 'T' : m_bTestRun = !m_bTestRun;
-                    cout << "Test run " << (m_bTestRun ? "en" : "dis") << "abled\n"; break;
-                case 'q' : bQuit = true; break;
+                case 'w' :
+                    m_abSaveWaveforms = !m_abSaveWaveforms;
+                    cout << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled\n";
+                    if ((m_abSaveWaveforms) && (m_abRun)) {
+                        StartRun();
+                        ResetPointers();
+                        m_abIsFirstEvent = true;
+                    }
+                    break;
+                case 'T' :
+                    m_bTestRun = !m_bTestRun;
+                    cout << "Test run " << (m_bTestRun ? "en" : "dis") << "abled\n";
+                    break;
+                case 'q' :
+                    if (m_abRun)
+                        cout << "Please stop acquisition first with 's'\n";
+                    else
+                        bQuit = true;
+                    break;
                 default: break;
             }
             input = '0';
         }
-        if (!bRun) {
+        if (!m_abRun) {
             continue;
         }
         if (bTriggerNow) {
             cout << "Triggering\n";
-            dig->SWTrigger();
+            digis.front()->SWTrigger();
             bTriggerNow = false;
         }
 
-            // check to make sure buffer is available
-        if (m_DecodeThread[bWhich].joinable()) m_DecodeThread[bWhich].join();
-
         // read from digitizer into open buffer
-        iNumEvents = dig->ReadBuffer(iBufferSize, bWhich);
-        if (iNumEvents > 0) m_DecodeThread[bWhich] = thread(&DAQ::DecodeEvents, this, bWhich, iNumEvents);
-
-        iTotalBuffer += iBufferSize;
-        iTotalEvents += iNumEvents;
-
-        if (m_bSaveWaveforms) {
-            // write to disk from the other
-            //if (m_abWriting) cout << "\nDeadtime warning\n";
-            if (m_WriteThread.joinable()) m_WriteThread.join();
-            m_WriteThread = thread(&DAQ::WriteToDisk, this, !bWhich);
+        iNumEvents = 0;
+        for (auto& dig : digis) {
+            iNumEvents = dig->ReadBuffer(iBufferSize);
+            iTotalBuffer += iBufferSize;
+            iTotalEvents += iNumEvents;
         }
-        // switch buffers
-        bWhich = !bWhich;
+        if (iNumEvents > 0) AddEvents(buffers, iNumEvents);
+
 
         ThisLoop = chrono::system_clock::now();
         dLoopTime = chrono::duration_cast<chrono::duration<double>>(ThisLoop - PrevPrintTime).count();
@@ -344,7 +337,7 @@ void DAQ::Readout() {
             stringstream ss;
             ss << setprecision(3) << "\rStatus: " << dReadRate << " MB/s, " << dTrigRate << " Hz, ";
             ss << setprecision(4) << FileRunTime << " sec, ";
-            if (m_bSaveWaveforms) {
+            if (m_abSaveWaveforms) {
                 ss << setprecision(6) << m_vFileInfos.back()[n_events] << "/" << m_vEventSizes.size() << " ev";
             }
             cout << left << setw(OutputWidth) << ss.str() << flush;
@@ -359,3 +352,86 @@ void DAQ::Readout() {
         } // print loop
     } // run loop
 } // Readout()
+
+void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
+    const unsigned int iSizeMask (0xFFFFFFF), iNumBytesHeader(4*sizeof(WORD));
+    vector<vector<WORD*> > vHeaders;
+    vector<vector<WORD*> > vBodies;
+    WORD* pHeader(nullptr);
+    WORD* pBody(nullptr);
+    vector<int> offset(buffer.size());
+    unsigned int iWordsInThisEvent(0);
+    for (unsigned i = 0; i < NumEvents; i++) {
+        vHeaders.push_back(vector<WORD*>());
+        vBodies.push_back(vector<WORD*>());
+        for (unsigned int b = 0; b < buffer.size(); b++) {
+            iWordsInThisEvent = iSizeMask & *(WORD*)(buffer[b] + offset[b]);
+            pHeader = (WORD*)(buffer[b] + offset[b]);
+            pBody = (WORD*)(buffer[b] + offset[b] + iNumBytesHeader);
+            vHeaders.back().push_back(pHeader);
+            vBodies.back().push_back(pBody);
+            offset[b] += iWordsInThisEvent * sizeof(WORD);
+        }
+        m_vBuffer[m_iInsertPtr].Add(vHeaders.back(), vBodies.back(), m_abIsFirstEvent);
+        m_abIsFirstEvent = false;
+        m_iToDecode++;
+        if (m_iInsertPtr == (m_iWritePtr+1)%m_iBufferLength) {
+            cout << "Deadtime warning!\n";
+        }
+        while (m_iInsertPtr == (m_iWritePtr+1)%m_iBufferLength) this_thread::yield();
+        m_iInsertPtr = (++m_iInsertPtr) % m_iBufferLength;
+    }
+}
+
+void DAQ::DecodeEvent() {
+    while (m_abRun) {
+        while (m_iToDecode == 0) this_thread::yield();
+
+        m_vBuffer[m_iDecodePtr].Decode();
+
+        m_iToDecode--;
+        m_iToWrite++;
+        m_iDecodePtr = (++m_iDecodePtr) % m_iBufferLength;
+    }
+}
+
+void DAQ::WriteEvent() {
+    while (m_abRun) {
+        while (m_iToWrite == 0 || !m_abSaveWaveforms) this_thread::yield();
+        int NumBytes(0);
+        unsigned int EvNum(0);
+
+        if (m_vFileInfos.back()[n_events] >= config.EventsPerFile) {
+            fout.close();
+            m_vFileInfos.push_back(file_info{0,0,0,0});
+            stringstream ss;
+            ss << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
+            fout.open(ss.str(), ofstream::binary | ofstream::out);
+            m_vFileInfos.back()[file_number] = m_vFileInfos.size()-1;
+        }
+
+        NumBytes = m_vBuffer[m_iWritePtr].Write(fout, EvNum);
+        m_vEventSizes.push_back(NumBytes);
+
+        if (m_vFileInfos.back()[n_events] == 0) {
+            m_vFileInfos.back()[first_event] = EvNum;
+            m_vEventSizeCum.push_back(0);
+        } else {
+            m_vFileInfos.back()[last_event] = EvNum;
+            m_vEventSizeCum.push_back(m_vEventSizeCum.back() + NumBytes);
+        }
+
+        m_vFileInfos.back()[n_events]++;
+
+        m_iToWrite--;
+
+        m_iWritePtr = (++m_iWritePtr) % m_iBufferLength;
+    }
+}
+
+void DAQ::ResetPointers() {
+    m_iToDecode = 0;
+    m_iToWrite = 0;
+    m_iWritePtr.store(m_iInsertPtr.load());
+    m_iDecodePtr.store(m_iInsertPtr.load());
+}

@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
     string config_file = argv[1];
     unique_ptr<DAQ> daq;
     try {
-    	daq = unique_ptr<DAQ>(new DAQ);
+    	daq = unique_ptr<DAQ>(new DAQ());
     } catch (exception& e) {
     	cout << "Why did this fail?" << e.what() << "\n";
     	return 1;

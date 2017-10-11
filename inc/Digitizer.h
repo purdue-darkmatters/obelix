@@ -18,17 +18,19 @@ public:
     Digitizer(int LinkNumber, int ConetNode, int BaseAddress);
     ~Digitizer();
     void ProgramDigitizer(ConfigSettings_t& CS); // will need stuff for syncing
-    unsigned int ReadBuffer(unsigned int& BufferSize, bool which);
-    const char* GetBuffer(int which) {return buffers[which];}
+    unsigned int ReadBuffer(unsigned int& BufferSize);
+    const char* GetBuffer() {return buffer;}
     void StartAcquisition();
     void StopAcquisition();
     void SWTrigger() {CAEN_DGTZ_SendSWtrigger(m_iHandle);}
+    bool IsRunning() {return m_bRunning;}
 
 private:
+    CAEN_DGTZ_ErrorCode WriteRegister(GW_t GW);
 
     int m_iHandle;
-    CAEN_DGTZ_ErrorCode WriteRegister(GW_t GW);
-    array<char*, 2> buffers;
+    bool m_bRunning;
+    char* buffer;
 };
 
 #endif // _DIGITIZER_H_ defined

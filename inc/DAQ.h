@@ -28,40 +28,36 @@ public:
 
 class DAQ {
 public:
-    DAQ();
+    DAQ(int BufferSize = 32768);
     ~DAQ();
     void Setup(const string& filename);
     void Readout();
 
 private:
+    void StartAcquisition();
     void StartRun();
     void EndRun();
-    void DecodeEvents(const bool which, const unsigned int iNumEvents);
-    void WriteToDisk(const bool which);
     void DoesNothing() {}; // for creation of threads
 
-    bool m_bSaveWaveforms;
+    atomic<bool> m_abSaveWaveforms;
     bool m_bTestRun;
     atomic<bool> m_abIsFirstEvent;
+    atomic<bool> m_abRun;
 
     ofstream fout;
     sqlite3* m_RunsDB;
-    unique_ptr<Digitizer> dig; // make vector
-    array<thread, 2> m_DecodeThread;
+    vector<unique_ptr<Digitizer>> digis; // make vector
+    vector<thread> m_DecodeThreads;
     thread m_WriteThread;
 
     chrono::high_resolution_clock::time_point m_tStart;
     string m_sRunName;
     string m_sRunPath;
-    int m_iFileCounter;
     vector<unsigned int> m_vEventSizes;
     vector<file_info> m_vFileInfos; // file_number, first_event, last_event, n_events
     vector<unsigned int> m_vEventSizeCum;
 
-    bool m_bWhich;
-    array<const char*, 2> buffers; // make vector
-    atomic<bool> m_abWriting;
-    array<vector<Event>, 2> m_vEvents;
+    vector<const char*> buffers;
 
     mongo::BSONObj config_dict;
     struct {
@@ -79,6 +75,25 @@ private:
         last_event,
         n_events,
     };
+
+    void AddEvents(vector<const char*>& buffer, unsigned int NumEvents);
+    void DecodeEvent();
+    void WriteEvent();
+    void ResetPointers(); // call this while threads aren't active
+    int WaitingToDecode() {return m_iToDecode;}
+    int WaitingToWrite() {return m_iToWrite;}
+
+
+    atomic<int> m_iInsertPtr;
+    atomic<int> m_iDecodePtr;
+    atomic<int> m_iWritePtr;
+
+    atomic<int> m_iToDecode;
+    atomic<int> m_iToWrite;
+
+    vector<Event> m_vBuffer;
+    const int m_iBufferLength;
+
 };
 
 #endif // _DAQ_H_ defined

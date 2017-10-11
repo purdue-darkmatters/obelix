@@ -18,7 +18,8 @@ class Event {
 public:
     Event();
     ~Event();
-    void Decode(const vector<WORD*>& headers, const vector<WORD*>& bodies, bool IsFirstEvent = false); // should handle multiple digitizers (up to 32 total channels)
+    void Add(const vector<WORD*>& headers, const vector<WORD*>& bodies, bool IsFirstEvent = false); // should handle multiple digitizers (up to 32 total channels)
+    void Decode();
     int Write(ofstream& fout, unsigned int& EvNum);
     static void SetUnixTS(long ts);
 
@@ -29,6 +30,7 @@ private:
     static int s_TimestampRollovers;
     static long s_LastTimestamp;
     static long s_FirstEventTimestamp;
+    static int s_FirstEventNumber;
     static atomic<long> s_UnixTSStart;
 
     static const unsigned int s_EventSizeMask = (0xFFFFFFF);
@@ -36,9 +38,10 @@ private:
     static const unsigned int s_ZLEMask = (0x1000000);
     static const unsigned int s_ChannelMaskMask = (0xFF);
     static const unsigned int s_CounterMask = (0xFFFFFF);
-    static const unsigned int s_BoardIDShift = (24);
-    static const unsigned int s_TimestampOffset = (2147483648);
-    static const int s_NsPerTriggerClock = (20);
+    static const unsigned int s_BoardIDShift = (0x18);
+    static const unsigned int s_TimestampOffset = (0x80000000);
+    static const unsigned int s_NsPerTriggerClock = (0x14);
+    static const unsigned int s_HeaderStartIndicator = (0xC0000000);
 };
 
 #endif // _EVENT_H_ defined
