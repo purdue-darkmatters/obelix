@@ -30,12 +30,15 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
 
     m_abSaveWaveforms = false;
     m_bTestRun = true;
+    m_abRunThreads = true;
 
     m_tStart = chrono::high_resolution_clock::now();
     Event::SetUnixTS(m_tStart.time_since_epoch().count());
 }
 
 DAQ::~DAQ() {
+    m_abRunThreads = false;
+    m_abRun = false;
     for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
     if (m_WriteThread.joinable()) m_WriteThread.join();
     EndRun();
@@ -157,25 +160,23 @@ void DAQ::StartRun() {
     strftime(temp, sizeof(temp), "%Y%m%d_%H%M", localtime(&rawtime));
     config.RunName = temp;
     cout << "\nStarting run " << config.RunName << "\n";
-    if (m_abSaveWaveforms) {
-        m_vFileInfos.push_back(file_info{0,0,0,0});
-        string command = "mkdir " + config.RawDataDir + config.RunName;
-        system(command.c_str());
-        stringstream fullfilename;
-        fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
-        fout.open(fullfilename.str(), ofstream::binary | ofstream::out);
-        if (!fout.is_open()) {
-            cout << "Could not open " << fullfilename.str() << "\n";
-            throw DAQException();
-        }
+
+    m_vFileInfos.push_back(file_info{0,0,0,0});
+    string command = "mkdir " + config.RawDataDir + config.RunName;
+    system(command.c_str());
+    stringstream fullfilename;
+    fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
+    fout.open(fullfilename.str(), ofstream::binary | ofstream::out);
+    if (!fout.is_open()) {
+        cout << "Could not open " << fullfilename.str() << "\n";
+        throw DAQException();
     }
 }
+
 
 void DAQ::EndRun() {
     if (!fout.is_open()) return;
     cout << "\nEnding run " << config.RunName << "\n";
-    for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
-    if (m_WriteThread.joinable()) m_WriteThread.join();
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
     stringstream command;
@@ -241,18 +242,31 @@ void DAQ::EndRun() {
     m_vFileInfos.clear();
     m_vEventSizeCum.clear();
 
-    // Reset digitizer timestamps?
+    // reset digitizer timestamps?
 }
 
 void DAQ::StartAcquisition() {
+    m_abRunThreads = false;
     for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
     if (m_WriteThread.joinable()) m_WriteThread.join();
     digis.front()->StartAcquisition(); // signal propagates
     m_abRun = true;
     ResetPointers();
+    m_abIsFirstEvent = true;
+    m_abRunThreads = true;
+    if (m_abSaveWaveforms) StartRun();
     for (auto& th : m_DecodeThreads) th = thread(&DAQ::DecodeEvent, this);
     m_WriteThread = thread(&DAQ::WriteEvent, this);
-    m_abIsFirstEvent = true;
+}
+
+void DAQ::StopAcquisition() {
+    digis.front()->StopAcquisition();
+    m_abRunThreads = false;
+    m_abRun = false;
+    for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
+    if (m_WriteThread.joinable()) m_WriteThread.join();
+    ResetPointers();
+    if (m_abSaveWaveforms) EndRun();
 }
 
 void DAQ::Readout() {
@@ -260,15 +274,15 @@ void DAQ::Readout() {
     cout << "Commands:"
               << " [s] Start/stop\n"
               << " [t] Force trigger\n"
-              << " [w] Write events to disk (otherwise discard)\n"
-              << " [T] En/disable automatic runs database interfacing\n"
+              << " [w] Toggle writing events to disk\n"
+              << " [T] Toggle automatic runs database interfacing\n"
               << " [q] Quit\n";
     unsigned int iNumEvents(0), iBufferSize(0), iTotalBuffer(0), iTotalEvents(0);
     bool bTriggerNow(false), bQuit(false);
     auto PrevPrintTime = chrono::system_clock::now();
     chrono::system_clock::time_point ThisLoop;
     int FileRunTime(0);
-    int OutputWidth(55);
+    int OutputWidth(60);
     double dReadRate(0), dTrigRate(0), dLoopTime(0);
     char input('0');
 
@@ -281,18 +295,18 @@ void DAQ::Readout() {
                     if (m_abRun) {
                         StartAcquisition();
                     } else {
-                        digis.front()->StopAcquisition();
+                        StopAcquisition();
                     } break;
                 case 't' :
                     bTriggerNow = true;
                     break;
                 case 'w' :
-                    m_abSaveWaveforms = !m_abSaveWaveforms;
-                    cout << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled\n";
-                    if ((m_abSaveWaveforms) && (m_abRun)) {
-                        StartRun();
-                        ResetPointers();
-                        m_abIsFirstEvent = true;
+                    if (m_abRun)
+                        cout << "Please stop acquisition first with 's'\n";
+                    else {
+                        m_abSaveWaveforms = !m_abSaveWaveforms;
+                        cout << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled\n";
+                        StartAcquisition();
                     }
                     break;
                 case 'T' :
@@ -336,7 +350,7 @@ void DAQ::Readout() {
             FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
             stringstream ss;
             ss << setprecision(3) << "\rStatus: " << dReadRate << " MB/s, " << dTrigRate << " Hz, ";
-            ss << setprecision(4) << FileRunTime << " sec, ";
+            ss << setprecision(4) << FileRunTime << " sec, " << m_iToDecode << "/" << m_iToWrite << ", ";
             if (m_abSaveWaveforms) {
                 ss << setprecision(6) << m_vFileInfos.back()[n_events] << "/" << m_vEventSizes.size() << " ev";
             }
@@ -344,9 +358,8 @@ void DAQ::Readout() {
             iTotalBuffer = 0;
             iTotalEvents = 0;
             if (FileRunTime >= 3600.) {
-                if (m_WriteThread.joinable()) m_WriteThread.join();
-                EndRun();
-                StartRun();
+                StopAcquisition();
+                StartAcquisition();
             }
             PrevPrintTime = chrono::system_clock::now();
         } // print loop
@@ -354,6 +367,7 @@ void DAQ::Readout() {
 } // Readout()
 
 void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
+    // this runs in the main thread
     const unsigned int iSizeMask (0xFFFFFFF), iNumBytesHeader(4*sizeof(WORD));
     vector<vector<WORD*> > vHeaders;
     vector<vector<WORD*> > vBodies;
@@ -375,17 +389,19 @@ void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
         m_vBuffer[m_iInsertPtr].Add(vHeaders.back(), vBodies.back(), m_abIsFirstEvent);
         m_abIsFirstEvent = false;
         m_iToDecode++;
-        if (m_iInsertPtr == (m_iWritePtr+1)%m_iBufferLength) {
+        if (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) {
             cout << "Deadtime warning!\n";
         }
-        while (m_iInsertPtr == (m_iWritePtr+1)%m_iBufferLength) this_thread::yield();
-        m_iInsertPtr = (++m_iInsertPtr) % m_iBufferLength;
+        while (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) this_thread::yield();
+        m_iInsertPtr = (m_iInsertPtr+1) % m_iBufferLength;
     }
 }
 
 void DAQ::DecodeEvent() {
     while (m_abRun) {
-        while (m_iToDecode == 0) this_thread::yield();
+        while ((m_iToDecode == 0) && (m_abRunThreads)) this_thread::yield();
+
+        if (!m_abRunThreads) return;
 
         m_vBuffer[m_iDecodePtr].Decode();
 
@@ -397,9 +413,11 @@ void DAQ::DecodeEvent() {
 
 void DAQ::WriteEvent() {
     while (m_abRun) {
-        while (m_iToWrite == 0 || !m_abSaveWaveforms) this_thread::yield();
+        while ((m_iToWrite == 0 || !m_abSaveWaveforms) && (m_abRunThreads)) this_thread::yield();
         int NumBytes(0);
         unsigned int EvNum(0);
+
+        if (!m_abRunThreads) return;
 
         if (m_vFileInfos.back()[n_events] >= config.EventsPerFile) {
             fout.close();

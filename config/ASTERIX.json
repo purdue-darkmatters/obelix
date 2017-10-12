@@ -23,7 +23,7 @@
 	},
 	"post_trigger" :
     {
-		"value" : 60,
+		"value" : 75,
 		"comment" : "percentage of event after trigger",
 	},
 	"trigger_edge" :
@@ -55,7 +55,12 @@
     {
 		"value" : "/data/ASTERIX/raw/",
 		"comment" : "where the data gets written. With trailing '/'",
-	},
+		},
+    "decode_threads" :
+    {
+        "value" : 1,
+        "comment" : "how many threads worth of event decoding you want. 1 is fine for now"
+    },
 	"channels" : [
 		{
 		"board" : 0,

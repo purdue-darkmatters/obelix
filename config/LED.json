@@ -23,7 +23,7 @@
     },
     "post_trigger" :
     {
-        "value" : 80,
+        "value" : 60,
         "comment" : "percentage of event after trigger"
     },
     "fpio_level" :

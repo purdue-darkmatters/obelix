@@ -35,6 +35,7 @@ public:
 
 private:
     void StartAcquisition();
+    void StopAcquisition();
     void StartRun();
     void EndRun();
     void DoesNothing() {}; // for creation of threads
@@ -43,6 +44,7 @@ private:
     bool m_bTestRun;
     atomic<bool> m_abIsFirstEvent;
     atomic<bool> m_abRun;
+    atomic<bool> m_abRunThreads;
 
     ofstream fout;
     sqlite3* m_RunsDB;
