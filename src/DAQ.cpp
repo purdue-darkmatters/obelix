@@ -389,10 +389,10 @@ void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
         m_vBuffer[m_iInsertPtr].Add(vHeaders.back(), vBodies.back(), m_abIsFirstEvent);
         m_abIsFirstEvent = false;
         m_iToDecode++;
-        if (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) {
+        if (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength)) {
             cout << "Deadtime warning!\n";
         }
-        while (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) this_thread::yield();
+        while (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength)) this_thread::yield();
         m_iInsertPtr = (m_iInsertPtr+1) % m_iBufferLength;
     }
 }
