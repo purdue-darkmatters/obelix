@@ -28,7 +28,7 @@ public:
 
 class DAQ {
 public:
-    DAQ(int BufferSize = 32768);
+    DAQ(int BufferSize = 1024);
     ~DAQ();
     void Setup(const string& filename);
     void Readout();
@@ -45,6 +45,8 @@ private:
     atomic<bool> m_abIsFirstEvent;
     atomic<bool> m_abRun;
     atomic<bool> m_abRunThreads;
+    atomic<int> m_aiEventsInCurrentFile;
+    atomic<int> m_aiEventsInRun;
 
     ofstream fout;
     sqlite3* m_RunsDB;
@@ -63,7 +65,7 @@ private:
 
     mongo::BSONObj config_dict;
     struct {
-        int EventsPerFile;
+        unsigned int EventsPerFile;
         int IsZLE;
         string RawDataDir;
         string RunName;
@@ -95,6 +97,7 @@ private:
 
     vector<Event> m_vBuffer;
     const int m_iBufferLength;
+    const int m_iMaxEventsInRun = 1000000;
 
 };
 

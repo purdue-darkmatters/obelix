@@ -34,7 +34,7 @@
 	"fpio_level" :
     {
 		"value" : "ttl",
-		"comment" : "options are 'ttl' or 'nim'. 'nim' doesn't seem to work"
+		"comment" : "options are 'ttl' or 'nim'"
 	},
 	"events_per_file" :
     {

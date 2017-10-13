@@ -1,10 +1,26 @@
 #include "DAQ.h"
 #include "kbhit.h"
+#include <csignal>
 
 #include <sstream>
 #include <iomanip>
 #include "mongo/db/json.h"
 #include "mongo/bson/bson.h"
+
+static int s_interrupted = 0;
+static void s_signal_handler(int signal_value) {
+    s_interrupted = 1;
+    cout << "\nInterrupted!\n";
+}
+
+static void s_catch_signals() {
+    struct sigaction action;
+    action.sa_handler = s_signal_handler;
+    action.sa_flags = 0;
+    sigemptyset(&action.sa_mask);
+    sigaction(SIGINT, &action, nullptr);
+    sigaction(SIGTERM, &action, nullptr);
+}
 
 DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     int rc = sqlite3_open_v2(runs_db_addr.c_str(), &m_RunsDB, SQLITE_OPEN_READWRITE, NULL);
@@ -28,12 +44,17 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     m_iToDecode = 0;
     m_iToWrite = 0;
 
+    m_aiEventsInCurrentFile = 0;
+    m_aiEventsInRun = 0;
+
     m_abSaveWaveforms = false;
     m_bTestRun = true;
     m_abRunThreads = true;
 
     m_tStart = chrono::high_resolution_clock::now();
     Event::SetUnixTS(m_tStart.time_since_epoch().count());
+
+    s_catch_signals();
 }
 
 DAQ::~DAQ() {
@@ -75,9 +96,14 @@ void DAQ::Setup(const string& filename) {
         CS.BlockTransfer = config_dict["block_transfer"]["value"].Int();
         config.EventsPerFile = config_dict["events_per_file"]["value"].Int();
         temp = config_dict["is_zle"]["value"].String();
-        if (temp == "no") CS.IsZLE = config.IsZLE = 0;
-        else if (temp == "yes") CS.IsZLE = config.IsZLE = 1;
+        if (temp == "no") {CS.IsZLE = false; config.IsZLE = false;}
+        else if (temp == "yes") {CS.IsZLE = true; config.IsZLE = true;}
         else cout << "Invalid ZLE config setting: " << temp << "\n";
+
+        temp = config_dict["fpio_level"]["value"].String();
+        if (temp == "ttl") CS.FPIO = CAEN_DGTZ_IOLevel_TTL;
+        else if (temp == "nim") CS.FPIO = CAEN_DGTZ_IOLevel_NIM;
+        else cout << "Invalid front panel setting: " << temp << "\n";
     } catch (...) {
         cout << "Missing config file entry in block 1\n";
         throw DAQException();
@@ -242,6 +268,9 @@ void DAQ::EndRun() {
     m_vFileInfos.clear();
     m_vEventSizeCum.clear();
 
+    m_aiEventsInCurrentFile = 0;
+    m_aiEventsInRun = 0;
+
     // reset digitizer timestamps?
 }
 
@@ -352,17 +381,23 @@ void DAQ::Readout() {
             ss << setprecision(3) << "\rStatus: " << dReadRate << " MB/s, " << dTrigRate << " Hz, ";
             ss << setprecision(4) << FileRunTime << " sec, " << m_iToDecode << "/" << m_iToWrite << ", ";
             if (m_abSaveWaveforms) {
-                ss << setprecision(6) << m_vFileInfos.back()[n_events] << "/" << m_vEventSizes.size() << " ev";
+                ss << setprecision(6) << m_aiEventsInCurrentFile << "/" << m_aiEventsInRun << " ev";
             }
             cout << left << setw(OutputWidth) << ss.str() << flush;
             iTotalBuffer = 0;
             iTotalEvents = 0;
-            if (FileRunTime >= 3600.) {
+            if ((FileRunTime >= 3600.) || (m_aiEventsInRun >= m_iMaxEventsInRun)) {
                 StopAcquisition();
                 StartAcquisition();
             }
             PrevPrintTime = chrono::system_clock::now();
         } // print loop
+
+        if (s_interrupted) {
+            StopAcquisition();
+            bQuit = true;
+            m_abRunThreads = false;
+        }
     } // run loop
 } // Readout()
 
@@ -389,35 +424,35 @@ void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
         m_vBuffer[m_iInsertPtr].Add(vHeaders.back(), vBodies.back(), m_abIsFirstEvent);
         m_abIsFirstEvent = false;
         m_iToDecode++;
-        if (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength)) {
-            cout << "Deadtime warning!\n";
+        if (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) && (m_iToWrite != 0)) {
+            cout << "Deadtime warning\n";
         }
-        while (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength)) this_thread::yield();
+        while (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) && (s_interrupted == 0) && (m_iToWrite != 0)) this_thread::yield();
         m_iInsertPtr = (m_iInsertPtr+1) % m_iBufferLength;
     }
 }
 
 void DAQ::DecodeEvent() {
     while (m_abRun) {
-        while ((m_iToDecode == 0) && (m_abRunThreads)) this_thread::yield();
+        while ((m_iToDecode == 0) && (m_abRunThreads) && (s_interrupted == 0)) this_thread::yield();
 
-        if (!m_abRunThreads) return;
-
+        if ((!m_abRunThreads) || (s_interrupted)) return;
+        //cout << "Decoded an event\n";
         m_vBuffer[m_iDecodePtr].Decode();
 
         m_iToDecode--;
         m_iToWrite++;
-        m_iDecodePtr = (++m_iDecodePtr) % m_iBufferLength;
+        m_iDecodePtr = (m_iDecodePtr+1) % m_iBufferLength;
     }
 }
 
 void DAQ::WriteEvent() {
     while (m_abRun) {
-        while ((m_iToWrite == 0 || !m_abSaveWaveforms) && (m_abRunThreads)) this_thread::yield();
+        while ((m_iToWrite == 0 || !m_abSaveWaveforms) && (m_abRunThreads) && (s_interrupted == 0)) this_thread::yield();
         int NumBytes(0);
         unsigned int EvNum(0);
 
-        if (!m_abRunThreads) return;
+        if ((!m_abRunThreads) || (s_interrupted)) return;
 
         if (m_vFileInfos.back()[n_events] >= config.EventsPerFile) {
             fout.close();
@@ -440,10 +475,12 @@ void DAQ::WriteEvent() {
         }
 
         m_vFileInfos.back()[n_events]++;
+        m_aiEventsInCurrentFile = m_vFileInfos.back()[n_events];
+        m_aiEventsInRun = m_vEventSizes.size();
 
         m_iToWrite--;
 
-        m_iWritePtr = (++m_iWritePtr) % m_iBufferLength;
+        m_iWritePtr = (m_iWritePtr+1) % m_iBufferLength;
     }
 }
 
