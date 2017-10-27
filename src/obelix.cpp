@@ -7,9 +7,10 @@ int main(int argc, char** argv) {
     }
     cout << "Welcome to Obelix!\n";
     string config_file = argv[1];
+    int buffer_length = argc > 2 ? atoi(argv[2]) : 1024;
     unique_ptr<DAQ> daq;
     try {
-    	daq = unique_ptr<DAQ>(new DAQ());
+    	daq = unique_ptr<DAQ>(new DAQ(buffer_length));
     } catch (exception& e) {
     	cout << "Why did this fail?" << e.what() << "\n";
     	return 1;

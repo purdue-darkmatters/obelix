@@ -137,7 +137,7 @@ void DAQ::Setup(const string& filename) {
         for (auto& cs : config_dict["channels"].Array()) {
             ChanSet.Channel = cs["channel"].Int();
             ChanSet.Enabled = cs["enabled"].Int();
-            ChanSet.DCoffset = (cs["dc_offset"].Int() + 50) * 65535/100;
+            ChanSet.DCoffset = cs["dc_offset"].Int();
             ChanSet.TriggerThreshold = cs["trigger_threshold"].Int();
             ChanSet.TriggerMode = CS.ChTriggerMode;
             ChanSet.ZLEThreshold = cs["zle_threshold"].Int();
@@ -199,7 +199,6 @@ void DAQ::StartRun() {
     }
 }
 
-
 void DAQ::EndRun() {
     if (!fout.is_open()) return;
     cout << "\nEnding run " << config.RunName << "\n";
@@ -208,10 +207,10 @@ void DAQ::EndRun() {
     stringstream command;
     char* errmsg(nullptr);
     if (!m_bTestRun) {
-        command << "INSERT INTO runs (name, start_time, end_time, runtime, events, raw_status, source) VALUES ('"
+        command << "INSERT INTO runs (name, start_time, end_time, runtime, events, raw_status, source, raw_location) VALUES ('"
             << config.RunName << "'," << m_tStart.time_since_epoch().count() << "," << tEnd.time_since_epoch().count() << ","
             << chrono::duration_cast<chrono::duration<double>>(tEnd-m_tStart).count() << "," << m_vEventSizes.size()
-            << ",'acquired','" << (config.IsZLE ? "none" : "LED") << "');";
+            << ",'acquired','" << (config.IsZLE ? "none" : "LED") << "','zinc');";
         int rc = sqlite3_exec(m_RunsDB, command.str().c_str(), nullptr, nullptr, &errmsg);
         if (rc != SQLITE_OK) {
             cout << "Couldn't add entry to runs databse\nError: " << errmsg << "\n";
@@ -379,9 +378,9 @@ void DAQ::Readout() {
             FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
             stringstream ss;
             ss << setprecision(3) << "\rStatus: " << dReadRate << " MB/s, " << dTrigRate << " Hz, ";
-            ss << setprecision(4) << FileRunTime << " sec, " << m_iToDecode << "/" << m_iToWrite << ", ";
+            ss << setprecision(4) << FileRunTime << " sec, " << m_iToDecode;
             if (m_abSaveWaveforms) {
-                ss << setprecision(6) << m_aiEventsInCurrentFile << "/" << m_aiEventsInRun << " ev";
+                ss << "/" << m_iToWrite << ", " << setprecision(6) << m_aiEventsInCurrentFile << "/" << m_aiEventsInRun << " ev";
             }
             cout << left << setw(OutputWidth) << ss.str() << flush;
             iTotalBuffer = 0;
