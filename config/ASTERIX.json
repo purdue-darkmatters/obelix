@@ -9,7 +9,7 @@
 	"record_length" :
     {
 		"value" : 5000,
-		"comment" : "number of samples in one waveform",
+		"comment" : "number of samples in one waveform"
 	},
 	"external_trigger" :
     {
@@ -19,17 +19,17 @@
 	"block_transfer" :
     {
 		"value" : 128,
-		"comment" : "number of events to readout at once. Must be smaller than number of events stored on digitizer",
+		"comment" : "number of events to readout at once. Must be smaller than number of events stored on digitizer"
 	},
 	"post_trigger" :
     {
 		"value" : 75,
-		"comment" : "percentage of event after trigger",
+		"comment" : "percentage of event after trigger"
 	},
 	"trigger_edge" :
     {
 		"value" : "falling",
-		"comment" : "options are 'falling' or 'rising'",
+		"comment" : "options are 'falling' or 'rising'"
 	},
 	"fpio_level" :
     {
@@ -39,22 +39,22 @@
 	"events_per_file" :
     {
 		"value" : 10000,
-		"comment" : "number of events per raw data file",
+		"comment" : "number of events per raw data file"
 	},
 	"is_zle" :
     {
 		"value" : "yes",
-		"comment" : "if the data is zle-encoded or not",
+		"comment" : "if the data is zle-encoded or not"
 	},
 	"channel_trigger" :
     {
 		"value" : "acquisition_only",
-		"comment" : "auto-trigger settings. Options are 'disabled', 'acquisition_only', 'acquisition_and_trgout'.",
+		"comment" : "auto-trigger settings. Options are 'disabled', 'acquisition_only', 'acquisition_and_trgout'."
 	},
 	"raw_data_dir" :
     {
 		"value" : "/data/ASTERIX/raw/",
-		"comment" : "where the data gets written. With trailing '/'",
+		"comment" : "where the data gets written. With trailing '/'"
 		},
     "decode_threads" :
     {
@@ -69,7 +69,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
-		"prepost_samples" : 10,
+		"prepost_samples" : 10
 		},
 		{
 		"board" : 0,
@@ -78,7 +78,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
-		"prepost_samples" : 10,
+		"prepost_samples" : 10
 		},
 		{
 		"board" : 0,
@@ -87,7 +87,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
-		"prepost_samples" : 10,
+		"prepost_samples" : 10
 		},
 		{
 		"board" : 0,
@@ -96,7 +96,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
-		"prepost_samples" : 10,
+		"prepost_samples" : 10
 		},
 		{
 		"board" : 0,
@@ -105,7 +105,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
-		"prepost_samples" : 10,
+		"prepost_samples" : 10
 		},
 		{
 		"board" : 0,
@@ -114,7 +114,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
-		"prepost_samples" : 10,
+		"prepost_samples" : 10
 		},
 		{
 		"board" : 0,
@@ -123,7 +123,7 @@
 		"dc_offset" : -45,
 		"trigger_threshold" : 15000,
 		"zle_threshld" : 15000,
-		"prepost_samples" : 10,
+		"prepost_samples" : 10
 		},
 		{
 		"board" : 0,
@@ -132,8 +132,8 @@
 		"dc_offset" : 0,
 		"trigger_threshold" : 0,
 		"zle_threshld" : 0,
-		"prepost_samples" : 10,
-		},
+		"prepost_samples" : 10
+		}
 	],
 	"registers" : [
 		{
@@ -149,6 +149,6 @@
 		"data" : "0x1",
 		"mask" : "0xFFF",
 		"comment" : "time under threshold, p13"
-		},
-	],
+		}
+	]
 }
