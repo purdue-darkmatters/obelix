@@ -37,6 +37,21 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
         throw bad_alloc();
     }
 
+    rc = sqlite3_prepare_v2(m_RunsDB,
+                            "INSERT INTO runs (name, start_time, end_time, runtime, events, \
+                            source) VALUES (?, ?, ?, ?, ?, ?);",
+                            -1, &m_InsertStmt, NULL);
+    m_BindIndex["name"] = 1;
+    m_BindIndex["start_time"] = 2;
+    m_BindIndex["end_time"] = 3;
+    m_BindIndex["runtime"] = 4;
+    m_BindIndex["events"] = 5;
+    m_BindIndex["source"] = 6;
+    if (rc != SQLITE_OK) {
+        cout << "Could not prepare database statement\nError code " << rc << "\n";
+        throw DAQException();
+    }
+
     m_iInsertPtr = 0;
     m_iDecodePtr = 0;
     m_iWritePtr = 0;
@@ -64,6 +79,7 @@ DAQ::~DAQ() {
     if (m_WriteThread.joinable()) m_WriteThread.join();
     EndRun();
     for (auto& dig : digis) dig.reset();
+    sqlite3_finalize(m_InsertStmt);
     sqlite3_close_v2(m_RunsDB);
     m_RunsDB = nullptr;
     cout << "\nShutting down DAQ\n";
@@ -204,19 +220,7 @@ void DAQ::EndRun() {
     cout << "\nEnding run " << config.RunName << "\n";
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
-    stringstream command;
-    char* errmsg(nullptr);
-    if (!m_bTestRun) {
-        command << "INSERT INTO runs (name, start_time, end_time, runtime, events, raw_status, source, raw_location) VALUES ('"
-            << config.RunName << "'," << m_tStart.time_since_epoch().count() << "," << tEnd.time_since_epoch().count() << ","
-            << chrono::duration_cast<chrono::duration<double>>(tEnd-m_tStart).count() << "," << m_vEventSizes.size()
-            << ",'acquired','" << (config.IsZLE ? "none" : "LED") << "','zinc');";
-        int rc = sqlite3_exec(m_RunsDB, command.str().c_str(), nullptr, nullptr, &errmsg);
-        if (rc != SQLITE_OK) {
-            cout << "Couldn't add entry to runs databse\nError: " << errmsg << "\n";
-            sqlite3_free(errmsg);
-        }
-    }
+
     mongo::BSONObjBuilder builder;
 
     builder.append("is_zle", config.IsZLE);
@@ -262,6 +266,28 @@ void DAQ::EndRun() {
     }
     fheader << tojson(builder.obj(), mongo::Strict, true);
     fheader.close();
+
+    if (!m_bTestRun) {
+        sqlite3_bind_text(m_InsertStmt, m_BindIndex["name"], config.RunName.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_int64(m_InsertStmt, m_BindIndex["start_time"], m_tStart.time_since_epoch().count());
+        sqlite3_bind_int64(m_InsertStmt, m_BindIndex["end_time"], tEnd.time_since_epoch().count());
+        sqlite3_bind_int64(m_InsertStmt, m_BindIndex["runtime"], chrono::duration_cast<chrono::duration<double>>(tEnd-m_tStart).count());
+        sqlite3_bind_int(m_InsertStmt, m_BindIndex["events"], m_vEventSizes.size());
+        sqlite3_bind_text(m_InsertStmt, m_BindIndex["source"], (config.IsZLE ? "none" : "LED"), -1, SQLITE_STATIC);
+
+        int rc = sqlite3_step(m_InsertStmt);
+        if (rc != SQLITE_DONE) {
+            cout << "Couldn't add entry to runs databse\nError code " << rc << "\n";
+        }
+        rc = sqlite3_reset(m_InsertStmt);
+        if (rc != SQLITE_OK) {
+            cout << "Couldn't reset statement\nError code " << rc << "\n";
+        }
+        rc = sqlite3_clear_bindings(m_InsertStmt);
+        if (rc != SQLITE_OK) {
+            cout << "Couldn't clear bindings\nError code " << rc << "\n";
+        }
+    }
 
     m_vEventSizes.clear();
     m_vFileInfos.clear();

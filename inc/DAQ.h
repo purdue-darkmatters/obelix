@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cctype>
 #include <chrono>
+#include <map>
 
 using file_info = array<unsigned int, 4>;
 
@@ -50,6 +51,8 @@ private:
 
     ofstream fout;
     sqlite3* m_RunsDB;
+    sqlite3_stmt* m_InsertStmt;
+    map<string, int> m_BindIndex;
     vector<unique_ptr<Digitizer>> digis; // make vector
     vector<thread> m_DecodeThreads;
     thread m_WriteThread;
