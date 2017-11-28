@@ -39,7 +39,7 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
 
     rc = sqlite3_prepare_v2(m_RunsDB,
                             "INSERT INTO runs (name, start_time, end_time, runtime, events, \
-                            source) VALUES (?, ?, ?, ?, ?, ?);",
+                            source, raw_size) VALUES (?, ?, ?, ?, ?, ?, ?);",
                             -1, &m_InsertStmt, NULL);
     m_BindIndex["name"] = 1;
     m_BindIndex["start_time"] = 2;
@@ -47,6 +47,7 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     m_BindIndex["runtime"] = 4;
     m_BindIndex["events"] = 5;
     m_BindIndex["source"] = 6;
+    m_BindIndex["raw_size"] = 7;
     if (rc != SQLITE_OK) {
         cout << "Could not prepare database statement\nError code " << rc << "\n";
         throw DAQException();
@@ -268,12 +269,27 @@ void DAQ::EndRun() {
     fheader.close();
 
     if (!m_bTestRun) {
+        long run_size_bytes(0);
+        int log_size(0);
+        stringstream run_size;
+        for (auto& x : m_vEventSizes) run_size_bytes += x;
+        for (log_size = 63; log_size >= 0; log_size--) if ((1 << log_size) & run_size_bytes) break;
+        if (log_size < 20) { // < 1 MB
+            run_size << "1M";
+        } else if (log_size < 30) { // < 1 GB
+            run_size << (run_size_bytes << 20) << "M";
+        } else if (log_size < 40) { // < 1 TB
+            run_size << (run_size_bytes << 30) << "G";
+        } else {
+            run_size << (run_size_bytes << 40) << "T";
+        }
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["name"], config.RunName.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["start_time"], m_tStart.time_since_epoch().count());
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["end_time"], tEnd.time_since_epoch().count());
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["runtime"], chrono::duration_cast<chrono::duration<double>>(tEnd-m_tStart).count());
         sqlite3_bind_int(m_InsertStmt, m_BindIndex["events"], m_vEventSizes.size());
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["source"], (config.IsZLE ? "none" : "LED"), -1, SQLITE_STATIC);
+        sqlite3_bind_text(m_InsertStmt, m_BindIndex["raw_size"], run_size.str().c_str(), -1, SQLITE_STATIC);
 
         int rc = sqlite3_step(m_InsertStmt);
         if (rc != SQLITE_DONE) {
