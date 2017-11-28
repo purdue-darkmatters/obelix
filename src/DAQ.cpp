@@ -272,7 +272,7 @@ void DAQ::EndRun() {
         long run_size_bytes(0);
         int log_size(0);
         stringstream run_size;
-        for (auto& x : m_vEventSizes): run_size_bytes += x;
+        for (auto& x : m_vEventSizes) run_size_bytes += x;
         for (log_size = 63; log_size >= 0; log_size--) if ((1 << log_size) & run_size_bytes) break;
         if (log_size < 20) { // < 1 MB
             run_size << "1M";
