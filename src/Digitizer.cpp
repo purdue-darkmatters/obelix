@@ -1,4 +1,5 @@
 #include "Digitizer.h"
+#include <iomanip>
 
 Digitizer::Digitizer() {}
 
@@ -112,7 +113,7 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
 
     for (auto& GW : CS.GenericWrites) {
         ret = WriteRegister(GW);
-        if (ret != CAEN_DGTZ_Success) cout << "Board " << m_iHandle << ": Error with register write: " << ret << "\n";
+        if (ret != CAEN_DGTZ_Success) cout << "Board " << m_iHandle << ": Error with register write: " << ret << "\n" << setbase(16) << "Tried to write value 0x" << GW.data << " to 0x" << GW.addr << " with mask 0x" << GW.mask << '\n';
     }
     buffer = nullptr;
     ret = CAEN_DGTZ_MallocReadoutBuffer(m_iHandle, &buffer, &AllocSize);

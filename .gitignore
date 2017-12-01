@@ -4,6 +4,7 @@
 
 # backups
 *~
+*.swp
 
 #executable
 obelix

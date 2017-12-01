@@ -505,15 +505,15 @@ void DAQ::WriteEvent() {
         }
 
         NumBytes = m_vBuffer[m_iWritePtr].Write(fout, EvNum);
-        m_vEventSizes.push_back(NumBytes);
 
         if (m_vFileInfos.back()[n_events] == 0) {
             m_vFileInfos.back()[first_event] = EvNum;
             m_vEventSizeCum.push_back(0);
         } else {
             m_vFileInfos.back()[last_event] = EvNum;
-            m_vEventSizeCum.push_back(m_vEventSizeCum.back() + NumBytes);
+            m_vEventSizeCum.push_back(m_vEventSizeCum.back() + m_vEventSizes.back());
         }
+        m_vEventSizes.push_back(NumBytes);
 
         m_vFileInfos.back()[n_events]++;
         m_aiEventsInCurrentFile = m_vFileInfos.back()[n_events];

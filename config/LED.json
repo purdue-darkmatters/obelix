@@ -61,7 +61,7 @@
             "board" : 0,
             "channel" : 0,
             "enabled" : 1,
-            "dc_offset" : 2870,
+            "dc_offset" : 2792,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
             "prepost_samples" : 10
@@ -69,8 +69,8 @@
         {
             "board" : 0,
             "channel" : 1,
-            "enabled" : 0,
-            "dc_offset" : 2870,
+            "enabled" : 1,
+            "dc_offset" : 3800,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
             "prepost_samples" : 10
@@ -79,7 +79,7 @@
             "board" : 0,
             "channel" : 2,
             "enabled" : 0,
-            "dc_offset" : 2870,
+            "dc_offset" : 2700,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
             "prepost_samples" : 10
@@ -87,8 +87,8 @@
         {
             "board" : 0,
             "channel" : 3,
-            "enabled" : 0,
-            "dc_offset" : 2870,
+            "enabled" : 1,
+            "dc_offset" : 3724,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
             "prepost_samples" : 10
