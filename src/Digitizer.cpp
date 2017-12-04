@@ -51,6 +51,7 @@ void Digitizer::StopAcquisition() {
 void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
     CAEN_DGTZ_ErrorCode ret = CAEN_DGTZ_Success;
     unsigned int val(0), AllocSize(0);
+    unsigned int address(0), data(0);
 
     // start with reset
     ret = CAEN_DGTZ_Reset(m_iHandle);
@@ -103,10 +104,10 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
         if (CS.IsZLE) {
             ret = CAEN_DGTZ_SetZeroSuppressionMode(m_iHandle, CAEN_DGTZ_ZS_ZLE);
             if (ret != CAEN_DGTZ_Success) cout << "Board " << m_iHandle << ": Error setting channel " << ch_set.Channel << " ZLE mode: " << ret << "\n";
-            ret = CAEN_DGTZ_SetChannelZSParams(m_iHandle, ch_set.Channel, CAEN_DGTZ_ZS_FINE, ch_set.ZLEThreshold, ch_set.PrePostSamples);
-        /*  ret = WriteRegister(GW_t{CAEN_DGTZ_CHANNEL_ZS_THRESHOLD_BASE_ADDRESS + (0x100 * ch_set.Channel),
-                                    (1 << 31) + ch_set.ZLEThreshold,
-                                    THRESHOLD_MASK}); */
+            ret = CAEN_DGTZ_SetChannelZSParams(m_iHandle, ch_set.Channel, CAEN_DGTZ_ZS_FINE, ch_set.ZLEThreshold, 0);
+            address = CAEN_DGTZ_SAM_REG_VALUE + (0x100 * ch_set.Channel);
+            data = (ch_set.ZLE_N_LBK << 16) + ch_set.ZLE_N_LFWD;
+            ret = WriteRegister(GW_t{address, data, 0xFFFFFFFF});
             if (ret != CAEN_DGTZ_Success) cout << "Board " << m_iHandle << ": Error setting channel " << ch_set.Channel << " ZLE parameters: " << ret << "\n";
         }
     }

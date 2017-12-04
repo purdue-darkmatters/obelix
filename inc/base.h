@@ -33,7 +33,8 @@ struct ChannelSettings_t {
     unsigned int DCoffset;
     unsigned int TriggerThreshold;
     unsigned int ZLEThreshold;
-    int PrePostSamples;
+    int ZLE_N_LFWD;
+    int ZLE_N_LBK;
     CAEN_DGTZ_TriggerMode_t TriggerMode;
 };
 
