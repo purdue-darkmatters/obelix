@@ -64,7 +64,8 @@
             "dc_offset" : 2792,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         },
         {
             "board" : 0,
@@ -73,7 +74,8 @@
             "dc_offset" : 3800,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         },
         {
             "board" : 0,
@@ -82,7 +84,8 @@
             "dc_offset" : 2700,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         },
         {
             "board" : 0,
@@ -91,7 +94,8 @@
             "dc_offset" : 3724,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         },
         {
             "board" : 0,
@@ -100,7 +104,8 @@
             "dc_offset" : 2870,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         },
         {
             "board" : 0,
@@ -109,7 +114,8 @@
             "dc_offset" : 2870,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         },
         {
             "board" : 0,
@@ -118,7 +124,8 @@
             "dc_offset" : 2870,
             "trigger_threshold" : 15000,
             "zle_threshold" : 15000,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         },
         {
             "board" : 0,
@@ -127,7 +134,8 @@
             "dc_offset" : 0,
             "trigger_threshold" : 0,
             "zle_threshold" : 0,
-            "prepost_samples" : 10
+            "zle_lbk_samples" : 5,
+            "zle_lfwd_samples" : 25
         }
     ],
     "registers" : []

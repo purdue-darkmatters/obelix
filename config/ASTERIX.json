@@ -69,7 +69,8 @@
         "dc_offset" : 2792,
         "trigger_threshold" : 15800,
         "zle_threshold" : 15900,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         },
         {
         "board" : 0,
@@ -78,7 +79,8 @@
         "dc_offset" : 3800,
         "trigger_threshold" : 15800,
         "zle_threshold" : 15900,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         },
         {
         "board" : 0,
@@ -87,7 +89,8 @@
         "dc_offset" : 2700,
         "trigger_threshold" : 15800,
         "zle_threshold" : 15900,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         },
         {
         "board" : 0,
@@ -96,7 +99,8 @@
         "dc_offset" : 3724,
         "trigger_threshold" : 15750,
         "zle_threshold" : 15900,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         },
         {
         "board" : 0,
@@ -105,7 +109,8 @@
         "dc_offset" : 2800,
         "trigger_threshold" : 15800,
         "zle_threshold" : 15900,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         },
         {
         "board" : 0,
@@ -114,7 +119,8 @@
         "dc_offset" : 2800,
         "trigger_threshold" : 15800,
         "zle_threshold" : 15900,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         },
         {
         "board" : 0,
@@ -123,7 +129,8 @@
         "dc_offset" : 2800,
         "trigger_threshold" : 15800,
         "zle_threshold" : 15900,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         },
         {
         "board" : 0,
@@ -132,7 +139,8 @@
         "dc_offset" : 0,
         "trigger_threshold" : 0,
         "zle_threshold" : 0,
-        "prepost_samples" : 5
+        "zle_lbk_samples" : 5,
+        "zle_lfwd_samples" : 25
         }
     ],
     "registers" : [

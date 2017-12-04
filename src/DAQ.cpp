@@ -152,12 +152,14 @@ void DAQ::Setup(const string& filename) {
     try {
         CS.EnableMask = 0;
         for (auto& cs : config_dict["channels"].Array()) {
-            ChanSet.Channel = cs["channel"].Int();
-            ChanSet.Enabled = cs["enabled"].Int();
-            ChanSet.DCoffset = cs["dc_offset"].Int();
-            ChanSet.TriggerThreshold = cs["trigger_threshold"].Int();
-            ChanSet.TriggerMode = CS.ChTriggerMode;
-            ChanSet.ZLEThreshold = cs["zle_threshold"].Int();
+            ChanSet.Channel             = cs["channel"].Int();
+            ChanSet.Enabled             = cs["enabled"].Int();
+            ChanSet.DCoffset            = cs["dc_offset"].Int();
+            ChanSet.TriggerThreshold    = cs["trigger_threshold"].Int();
+            ChanSet.TriggerMode         = CS.ChTriggerMode;
+            ChanSet.ZLEThreshold        = cs["zle_threshold"].Int();
+            ChanSet.ZLE_N_LFWD          = cs["zle_lfwd_samples"].Int();
+            ChanSet.ZLE_N_LBK           = cs["zle_lbk_samples"].Int();
             if (ChanSet.Enabled) CS.EnableMask |= (1 << ChanSet.Channel);
             CS.ChannelSettings.push_back(ChanSet);
             config.ChannelSettings.push_back(ChanSet);
