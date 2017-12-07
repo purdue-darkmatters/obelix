@@ -10,6 +10,23 @@ author: Darryl Masson, Purdue University
 CAEN V1724 plus its libraries
 sqlite3
 c++ mongo client
+boost
 
 - Usage:
-$ obelix /path/to/config/file.json
+$ obelix [options]
+Allowed arguments:
+  -h [ --help ]         produce this message
+  -c [ --config ] arg   specify config file (required)
+  -v [ --version ]      output current version and return
+
+During operation, there are a few inputs:
+s - start/stop acquisition
+t - force trigger
+w - toggle writing events to disk. Acquisition must be stopped. Default off
+T - toggle runs database interfacing. Default off.
+q - quit. Acquisition must be stopped.
+
+- What it does:
+While the acquisition is running, it reads data from the digitizer[s] into a circular buffer. Data is encoded into its output format as it is copied from the readout buffer. Two other agents act on the circular buffer. The "decode" actor performs any desired live operations on the waveforms (for instance, finding s2s and triggering the pulser), and the "write" actor outputs events to disk. The "decode" actor may be assigned multiple threads without issue, the "write" actor is bound to a single thread. If the write actor is active on the element immediately before the insert pointer (the snake about to eat its tail), a deadtime warning is output and the insertion of events into the buffer is halted until space is available.
+
+If runs database inferfacing is enabled, when a run is stopped an entry is written into the runs db with information about the start/stop times, source, runtime, events, etc, and the run metadata is written to a json file in the directory containing the raw data (note that the metadata is always saved, even if the runs database is not accessed).

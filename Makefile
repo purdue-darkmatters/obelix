@@ -3,7 +3,7 @@ SRCDIR = src
 INCDIR = inc
 CFLAGS = -g -Wall -Iinc -std=c++11 -O2
 CPPFLAGS = $(CFLAGS)
-LDFLAGS = -lCAENDigitizer -lmongoclient -lsqlite3 -lpthread
+LDFLAGS = -lCAENDigitizer -lmongoclient -lsqlite3 -lpthread -lboost_program_options
 INSTALLDIR = /usr/local/bin
 EXE = obelix
 
