@@ -67,20 +67,20 @@
         "channel" : 0,
         "enabled" : 1,
         "dc_offset" : 2792,
-        "trigger_threshold" : 15800,
-        "zle_threshold" : 15900,
-        "zle_lbk_samples" : 5,
-        "zle_lfwd_samples" : 25
+        "trigger_threshold" : 15860,
+        "zle_threshold" : 15950,
+        "zle_lbk_samples" : 20,
+        "zle_lfwd_samples" : 100
         },
         {
         "board" : 0,
         "channel" : 1,
         "enabled" : 1,
         "dc_offset" : 3800,
-        "trigger_threshold" : 15800,
-        "zle_threshold" : 15900,
-        "zle_lbk_samples" : 5,
-        "zle_lfwd_samples" : 25
+        "trigger_threshold" : 15860,
+        "zle_threshold" : 15950,
+        "zle_lbk_samples" : 20,
+        "zle_lfwd_samples" : 100
         },
         {
         "board" : 0,
@@ -88,7 +88,7 @@
         "enabled" : 0,
         "dc_offset" : 2700,
         "trigger_threshold" : 15800,
-        "zle_threshold" : 15900,
+        "zle_threshold" : 15950,
         "zle_lbk_samples" : 5,
         "zle_lfwd_samples" : 25
         },
@@ -97,10 +97,10 @@
         "channel" : 3,
         "enabled" : 1,
         "dc_offset" : 3724,
-        "trigger_threshold" : 15750,
-        "zle_threshold" : 15900,
-        "zle_lbk_samples" : 5,
-        "zle_lfwd_samples" : 25
+        "trigger_threshold" : 15800,
+        "zle_threshold" : 15950,
+        "zle_lbk_samples" : 20,
+        "zle_lfwd_samples" : 100
         },
         {
         "board" : 0,
@@ -108,7 +108,7 @@
         "enabled" : 0,
         "dc_offset" : 2800,
         "trigger_threshold" : 15800,
-        "zle_threshold" : 15900,
+        "zle_threshold" : 15950,
         "zle_lbk_samples" : 5,
         "zle_lfwd_samples" : 25
         },

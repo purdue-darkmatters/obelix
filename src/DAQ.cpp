@@ -101,8 +101,8 @@ void DAQ::Setup(const string& filename) {
     while (getline(fin, str)) json_string += str;
     try {
         config_dict = mongo::fromjson(json_string);
-    } catch (...) {
-        cout << "Error parsing " << filename << ". Is it valid json?\n";
+    } catch (exception& e) {
+        cout << "Error parsing " << filename << ". Is it valid json?\n" << e.what() << "\n";
         throw DAQException();
     }
     // will need some more values in config json about board numbers
@@ -121,8 +121,8 @@ void DAQ::Setup(const string& filename) {
         if (temp == "ttl") CS.FPIO = CAEN_DGTZ_IOLevel_TTL;
         else if (temp == "nim") CS.FPIO = CAEN_DGTZ_IOLevel_NIM;
         else cout << "Invalid front panel setting: " << temp << "\n";
-    } catch (...) {
-        cout << "Missing config file entry in block 1\n";
+    } catch (exception& e) {
+        cout << "Error in config file block 1: " << e.what() << "\n";
         throw DAQException();
     }
 
@@ -144,8 +144,8 @@ void DAQ::Setup(const string& filename) {
         else if (temp == "acquisition_and_trgout") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
         else if (temp == "disabled") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
         else cout << "Invalid channel trigger value: " << temp << "\n";
-    } catch (...) {
-        cout << "Missing config file entry in block 2\n";
+    } catch (exception& e) {
+        cout << "Error in config file block 2: " << e.what() << "\n";
         throw DAQException();
     }
 
@@ -171,8 +171,8 @@ void DAQ::Setup(const string& filename) {
             GW.mask = stoi(gw["mask"].String(), nullptr, 16);
             CS.GenericWrites.push_back(GW);
         }
-    } catch (...) {
-        cout << "Missing config file entry in block 3\n";
+    } catch (exception& e) {
+        cout << "Error in config file block 3: " << e.what() << "\n";
         throw DAQException();
     }
     try {
@@ -279,11 +279,11 @@ void DAQ::EndRun() {
         if (log_size < 20) { // < 1 MB
             run_size << "1M";
         } else if (log_size < 30) { // < 1 GB
-            run_size << (run_size_bytes << 20) << "M";
+            run_size << (run_size_bytes >> 20) << "M";
         } else if (log_size < 40) { // < 1 TB
-            run_size << (run_size_bytes << 30) << "G";
+            run_size << (run_size_bytes >> 30) << "G";
         } else {
-            run_size << (run_size_bytes << 40) << "T";
+            run_size << (run_size_bytes >> 40) << "T";
         }
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["name"], config.RunName.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["start_time"], m_tStart.time_since_epoch().count());
@@ -342,6 +342,7 @@ void DAQ::StopAcquisition() {
 }
 
 void DAQ::Readout() {
+    cout << setbase(10) << flush;
     cout << "Ready to go.\n";
     cout << "Commands:"
               << " [s] Start/stop\n"
@@ -353,10 +354,12 @@ void DAQ::Readout() {
     bool bTriggerNow(false), bQuit(false);
     auto PrevPrintTime = chrono::system_clock::now();
     chrono::system_clock::time_point ThisLoop;
-    int FileRunTime(0);
-    int OutputWidth(60);
-    double dReadRate(0), dTrigRate(0), dLoopTime(0);
+    int FileRunTime(0), iLogReadSize(0), OutputWidth(60);
     char input('0');
+    double dLoopTime(0);
+    array<stringstream, 5> sOutputs;
+    stringstream sOutput;
+    const string delim(", ");
 
     while (!bQuit) {
         if (kbhit()) {
@@ -417,16 +420,29 @@ void DAQ::Readout() {
         ThisLoop = chrono::system_clock::now();
         dLoopTime = chrono::duration_cast<chrono::duration<double>>(ThisLoop - PrevPrintTime).count();
         if (dLoopTime > 1.0) {
-            dReadRate = (iTotalBuffer>>20)/dLoopTime; // MB/s
-            dTrigRate = iTotalEvents/dLoopTime; // Hz
-            FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
-            stringstream ss;
-            ss << setprecision(3) << "\rStatus: " << dReadRate << " MB/s, " << dTrigRate << " Hz, ";
-            ss << setprecision(4) << FileRunTime << " sec, " << m_iToDecode;
-            if (m_abSaveWaveforms) {
-                ss << "/" << m_iToWrite << ", " << setprecision(6) << m_aiEventsInCurrentFile << "/" << m_aiEventsInRun << " ev";
+            for (iLogReadSize = 31; iLogReadSize >= 0; iLogReadSize--) if ((1 << iLogReadSize) & iTotalBuffer) break;
+            if (iLogReadSize < 10) { // ~B/s
+                sOutputs[0] << setprecision(3) << iTotalBuffer/dLoopTime << " B/s";
+            } else if (iLogReadSize < 20) { // ~kB/s
+                sOutputs[0] << setprecision(3) << (iTotalBuffer >> 10)/dLoopTime << " kB/s";
+            } else { // ~MB/s
+                sOutputs[0] << setprecision(3) << (iBufferSize >> 20)/dLoopTime << " MB/s";
             }
-            cout << left << setw(OutputWidth) << ss.str() << flush;
+            sOutputs[1] << setprecision(3) << iTotalEvents/dLoopTime << " Hz";
+            FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
+            sOutputs[2] << FileRunTime << " sec";
+            sOutputs[3] << m_iToDecode;
+            if (m_abSaveWaveforms) {
+                sOutputs[3] << "/" << m_iToWrite;
+                sOutputs[4] << m_aiEventsInCurrentFile << "/" << m_aiEventsInRun << " ev";
+            }
+            sOutput << "\rStatus: ";
+            for (auto& s : sOutputs) {
+                if (s.str() != "") sOutput << s.str() << delim;
+                s.str("");
+            }
+            cout << left << setw(OutputWidth) << sOutput.str() << flush;
+            sOutput.str("");
             iTotalBuffer = 0;
             iTotalEvents = 0;
             if ((FileRunTime >= 3600.) || (m_aiEventsInRun >= m_iMaxEventsInRun)) {
@@ -453,6 +469,7 @@ void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
     WORD* pBody(nullptr);
     vector<int> offset(buffer.size());
     unsigned int iWordsInThisEvent(0);
+    bool bCallForHelp(true);
     for (unsigned i = 0; i < NumEvents; i++) {
         vHeaders.push_back(vector<WORD*>());
         vBodies.push_back(vector<WORD*>());
@@ -467,10 +484,14 @@ void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
         m_vBuffer[m_iInsertPtr].Add(vHeaders.back(), vBodies.back(), m_abIsFirstEvent);
         m_abIsFirstEvent = false;
         m_iToDecode++;
-        if (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) && (m_iToWrite != 0)) {
-            cout << "Deadtime warning\n";
+        while (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) && (s_interrupted == 0) && (m_iToWrite != 0)) {
+            if (bCallForHelp) {
+                cout << "Deadtime warning\n";
+                bCallForHelp = false;
+            }
+            this_thread::yield();
         }
-        while (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) && (s_interrupted == 0) && (m_iToWrite != 0)) this_thread::yield();
+        bCallForHelp = true;
         m_iInsertPtr = (m_iInsertPtr+1) % m_iBufferLength;
     }
 }
