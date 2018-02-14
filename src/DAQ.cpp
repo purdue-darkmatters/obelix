@@ -88,11 +88,11 @@ DAQ::~DAQ() {
 
 void DAQ::Setup(const string& filename) {
     cout << "Parsing config file " << filename << "...\n";
-    string temp;
-    int link_number, conet_node, base_address;
+    string temp(""), pmt_config_file(filename.substr(0, filename.find_last_of('/')) + "/pmt_config.json");
+    int link_number(0), conet_node(0), base_address(0);
     ChannelSettings_t ChanSet;
     GW_t GW;
-    string json_string, str;
+    string json_string(""), str("");
     ifstream fin(filename, ifstream::in);
     if (!fin.is_open()) {
         cout << "Could not open " << filename << "\n";
@@ -105,6 +105,7 @@ void DAQ::Setup(const string& filename) {
         cout << "Error parsing " << filename << ". Is it valid json?\n" << e.what() << "\n";
         throw DAQException();
     }
+    fin.close();
     // will need some more values in config json about board numbers
     ConfigSettings_t CS;
     try {
@@ -144,8 +145,37 @@ void DAQ::Setup(const string& filename) {
         else if (temp == "acquisition_and_trgout") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
         else if (temp == "disabled") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
         else cout << "Invalid channel trigger value: " << temp << "\n";
+
+        for (auto& gw : config_dict["registers"].Array()) {
+            GW.addr = stoi(gw["register"].String(), nullptr, 16);
+            GW.data = stoi(gw["data"].String(), nullptr, 16);
+            GW.mask = stoi(gw["mask"].String(), nullptr, 16);
+            CS.GenericWrites.push_back(GW);
+        }
     } catch (exception& e) {
         cout << "Error in config file block 2: " << e.what() << "\n";
+        throw DAQException();
+    }
+
+    try {
+        for (int i = 0; i < config_dict["decode_threads"]["value"].Int(); i++) m_DecodeThreads.push_back(thread(&DAQ::DoesNothing, this));
+    } catch (exception& e) {
+        cout << "Error starting decode threads\n" << e.what() << "\n";
+        throw DAQException();
+    }
+
+    fin.open(pmt_config_file, ifstream::in);
+    if (!fin.is_open()) {
+        cout << "Could not open " << pmt_config_file << "\n";
+        throw DAQException();
+    }
+    json_string = "\0";
+    while (getline(fin, str)) json_string += str;
+    fin.close();
+    try {
+        config_dict = mongo::fromjson(json_string);
+    } catch (exception& e) {
+        cout << "Error parsing " << pmt_config_file << ". Is it valid json?\n" << e.what() << "\n";
         throw DAQException();
     }
 
@@ -164,17 +194,11 @@ void DAQ::Setup(const string& filename) {
             CS.ChannelSettings.push_back(ChanSet);
             config.ChannelSettings.push_back(ChanSet);
         }
-
-        for (auto& gw : config_dict["registers"].Array()) {
-            GW.addr = stoi(gw["register"].String(), nullptr, 16);
-            GW.data = stoi(gw["data"].String(), nullptr, 16);
-            GW.mask = stoi(gw["mask"].String(), nullptr, 16);
-            CS.GenericWrites.push_back(GW);
-        }
     } catch (exception& e) {
         cout << "Error in config file block 3: " << e.what() << "\n";
         throw DAQException();
     }
+
     try {
         digis.push_back(unique_ptr<Digitizer>(new Digitizer(link_number, conet_node, base_address)));
     } catch (exception& e) {
@@ -185,12 +209,6 @@ void DAQ::Setup(const string& filename) {
     for (auto& dig : digis) {
         dig->ProgramDigitizer(CS);
         buffers.push_back(dig->GetBuffer());
-    }
-    try {
-        for (int i = 0; i < config_dict["decode_threads"]["value"].Int(); i++) m_DecodeThreads.push_back(thread(&DAQ::DoesNothing, this));
-    } catch (exception& e) {
-        cout << "Error starting decode threads\n" << e.what() << "\n";
-        throw DAQException();
     }
 
 }

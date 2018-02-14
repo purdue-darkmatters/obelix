@@ -8,7 +8,7 @@
     },
     "record_length" : 
     {
-        "value" : 1024,
+        "value" : 131072,
         "comment" : "number of samples in the acquisition window"
     },
     "external_trigger" :
@@ -18,12 +18,12 @@
     },
     "block_transfer" :
     {
-        "value" : 1023,
+        "value" : 2,
         "comment" : "number of events to readout at once. Must be smaller than max number of events stored on digitizer. Max 1023"
     },
     "post_trigger" :
     {
-        "value" : 60,
+        "value" : 50,
         "comment" : "percentage of event after trigger"
     },
     "fpio_level" :
@@ -33,7 +33,7 @@
     },
     "events_per_file" :
     {
-        "value" : 10000,
+        "value" : 100,
         "comment" : "number of events per raw data file"
     },
     "is_zle" :
