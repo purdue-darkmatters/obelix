@@ -11,18 +11,20 @@ import os
 import sys
 
 if len(sys.argv) != 2:
-    print('Usage: %s yymmdd_hhmm' % sys.argv[0])
+    print('Usage: %s path/to/noise/run' % sys.argv[0])
     sys.exit()
 else:
-    run = sys.argv[1]
+    full_path = sys.argv[1]
 
-base_dir = '/data/ASTERIX/raw'
-full_path = os.path.join(base_dir,run)
 if not os.path.exists(full_path):
-    print('Can\'t find %s, is it in %s?' % (run,base_dir))
+    print('Can\'t find %s' % (full_path))
 else:
     print('Found %s' % full_path)
 
+if full_path[-1] == '/':
+    run = full_path.split('/')[-2]
+else:
+    run = full_path.split('/')[-1]
 with open(os.path.join(full_path,'pax_info.json'),'r') as f:
     run_metadata = json.load(f)
     if run_metadata['is_zle']:
@@ -54,7 +56,7 @@ with open(os.path.join(full_path, run + '_000000.ast'),'rb') as f:
         for ch in range(32): # max 32 channels
             if channel_mask & (1 << ch):
                 channels.append(ch)
-        
+
         events.append(np.reshape(data, (len(channels), -1)))
 events = np.array(events)
 print('Loaded %i events' % len(events))
