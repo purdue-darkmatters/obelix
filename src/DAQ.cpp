@@ -444,7 +444,7 @@ void DAQ::Readout() {
             } else if (iLogReadSize < 20) { // ~kB/s
                 sOutputs[0] << setprecision(3) << (iTotalBuffer >> 10)/dLoopTime << " kB/s";
             } else { // ~MB/s
-                sOutputs[0] << setprecision(3) << (iBufferSize >> 20)/dLoopTime << " MB/s";
+                sOutputs[0] << setprecision(3) << (iTotalBuffer >> 20)/dLoopTime << " MB/s";
             }
             sOutputs[1] << setprecision(3) << iTotalEvents/dLoopTime << " Hz";
             FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
