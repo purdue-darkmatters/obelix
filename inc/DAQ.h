@@ -33,6 +33,7 @@ public:
     ~DAQ();
     void Setup(const string& filename);
     void Readout();
+    void SetRunComment(const string& in) {m_sRunComment = in;}
 
 private:
     void StartAcquisition();
@@ -52,6 +53,7 @@ private:
     ofstream fout;
     sqlite3* m_RunsDB;
     sqlite3_stmt* m_InsertStmt;
+    string m_sRunComment;
     map<string, int> m_BindIndex;
     vector<unique_ptr<Digitizer>> digis; // make vector
     vector<thread> m_DecodeThreads;

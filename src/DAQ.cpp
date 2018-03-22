@@ -39,7 +39,7 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
 
     rc = sqlite3_prepare_v2(m_RunsDB,
                             "INSERT INTO runs (name, start_time, end_time, runtime, events, \
-                            source, raw_size) VALUES (?, ?, ?, ?, ?, ?, ?);",
+                            source, raw_size, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
                             -1, &m_InsertStmt, NULL);
     m_BindIndex["name"] = 1;
     m_BindIndex["start_time"] = 2;
@@ -48,6 +48,7 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     m_BindIndex["events"] = 5;
     m_BindIndex["source"] = 6;
     m_BindIndex["raw_size"] = 7;
+    m_BindIndex["comments"] = 8;
     if (rc != SQLITE_OK) {
         cout << "Could not prepare database statement\nError code " << rc << "\n";
         throw DAQException();
@@ -310,6 +311,7 @@ void DAQ::EndRun() {
         sqlite3_bind_int(m_InsertStmt, m_BindIndex["events"], m_vEventSizes.size());
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["source"], (config.IsZLE ? "none" : "LED"), -1, SQLITE_STATIC);
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["raw_size"], run_size.str().c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(m_InsertStmt, m_BindIndex["comments"], m_sRunComment.c_str(), -1, SQLITE_STATIC);
 
         int rc = sqlite3_step(m_InsertStmt);
         if (rc != SQLITE_DONE) {
