@@ -60,7 +60,7 @@ with open(os.path.join(full_path, run + '_000000.ast'),'rb') as f:
         events.append(np.reshape(data, (len(channels), -1)))
 events = np.array(events)
 print('Loaded %i events' % len(events))
-total_time = len(np.reshape(events[:,0,:]))
+total_time = len(np.reshape(events[:,0,:],-1))
 print('Looking at %f ms of data' % (total_time*1e-5))
 
 plt.figure(figsize=(12,9))

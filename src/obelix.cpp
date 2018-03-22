@@ -7,11 +7,13 @@ int main(int argc, char** argv) {
     const string version("1.2.5");
     const int default_buffer_size(1024);
     int buffer_length(0);
+    string run_comment("");
     po::options_description general_options("Allowed arguments");
     general_options.add_options()
         ("help,h", "produce this message")
         ("config,c", po::value<string>(), "specify config file (requried)")
         ("version,v", "output current version and return")
+        ("comment,C", po::value<string>()->default_value(run_comment), "specify comment for runs DB")
     ;
 
     po::options_description secret_options("Secret arguments");
@@ -46,10 +48,14 @@ int main(int argc, char** argv) {
     if (vm.count("buffer")) {
         buffer_length = vm["buffer"].as<int>();
     }
+    if (vm.count("comment")) {
+        run_comment = vm["comment"].as<string>();
+    }
     const string& config_file = vm["config"].as<string>();
     unique_ptr<DAQ> daq;
     try {
         daq = unique_ptr<DAQ>(new DAQ(buffer_length));
+        daq->SetRunComment(run_comment);
     } catch (exception& e) {
         cout << "Why did this fail?" << e.what() << "\n";
         return 1;
