@@ -1,8 +1,5 @@
 #!/depot/darkmatter/etc/conda/env/asterix/bin/python3
 import numpy as np
-import scipy
-from scipy.optimize import curve_fit
-import pandas as pd
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
