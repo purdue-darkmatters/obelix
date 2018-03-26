@@ -4,7 +4,7 @@
 namespace po = boost::program_options;
 
 int main(int argc, char** argv) {
-    const string version("1.2.6");
+    const string version("1.3.0");
     const int default_buffer_size(1024);
     int buffer_length(0);
     string run_comment("");
