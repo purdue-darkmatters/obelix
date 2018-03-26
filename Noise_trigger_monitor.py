@@ -37,6 +37,7 @@ ast_event_header = np.dtype([
     ('word4', '<u4'), # timestamp bits[0:31]
 ])
 events = []
+ref_baseline = 16000
 with open(os.path.join(full_path, run + '_000000.ast'),'rb') as f:
     for event_size,file_loc in zip(run_metadata['event_size_bytes'],run_metadata['event_size_cum']):
         data = f.read(event_size)
@@ -62,23 +63,25 @@ print('Looking at %f ms of data' % (total_time*1e-5))
 
 plt.figure(figsize=(12,9))
 bins = np.arange(0,2**14 + 1)
-#bins = np.arange(0,450)
-cols = ['blue', 'green', 'red', 'cyan', 'magenta']
-hists = []
+cols = ['black','blue', 'green', 'red', 'magenta', 'cyan', 'yellow']
+ls = {'zle' : ':', 'trigger' : '--'}
 for i,ch in enumerate(channels):
     here = events[:,i,:]
-    print('Ch %i: Mean %f, std %f' % (ch, np.mean(here),np.std(here)))
-    n, _, _ = plt.hist(np.reshape(here, -1), bins=bins, histtype='step', label='channel %i' % ch, color=cols[i])
-    quant = [sum(n[:j]) for j in range(1,len(n))]
-    plt.plot(range(1,len(n)), quant, c=cols[i], linestyle=':')
+    print('Ch %i: Mean %f, std %f' % (ch, np.mean(here), np.std(here)))
+    print('\tTrigger %i, zle %i' % (run_metadata['channel_settings'][ch]['trigger_threshold'], run_metadata['channel_settings'][ch]['zle_threshold']))
+    n, _ = np.histogram(np.reshape(here, -1), bins=bins)
+    quant = np.array([sum(n[:j]) for j in range(1, len(n))])/(total_time*1e-8)
+    plt.plot(ref_baseline - np.arange(1,len(n)), quant, c=cols[i], linestyle='-', label='channel %i' % ch)
+    plt.vlines(run_metadata['channel_settings'][ch]['trigger_threshold'], min(quant), max(quant), colors=cols[i], linestyle=ls['trigger'])
+    plt.vlines(run_metadata['channel_settings'][ch]['zle_threshold'], max(quant), max(quant), colors=cols[i], linestyle=ls['zle'])
 
-plt.xlabel('Bin')
-plt.ylabel('Count')
+plt.xlabel('Bins below baseline (16000)')
+plt.ylabel('Rate above threshold [Hz]')
 plt.yscale('log')
 #plt.xlim(bins[0],bins[-1])
-plt.xlim(15950,16010)
+plt.xlim(-10,110)
 plt.ylim(0.8,)
-plt.legend(loc='upper left')
+plt.legend(loc='upper right')
 
 plt.show()
 

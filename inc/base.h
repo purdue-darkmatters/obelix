@@ -21,6 +21,8 @@ using WORD = unsigned int;
 const string runs_db_addr("/depot/darkmatter/apps/asterix/asterix_runs_db.db");
 const string config_dir("/depot/darkmatter/apps/asterix/obelix/config/");
 
+const int iBaselineRef(16000);
+
 struct GW_t {
     WORD addr;
     WORD data;

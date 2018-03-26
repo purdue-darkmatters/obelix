@@ -97,14 +97,14 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
             continue;
         ret = CAEN_DGTZ_SetChannelDCOffset(m_iHandle, ch_set.Channel, ch_set.DCoffset);
         if (ret != CAEN_DGTZ_Success) cout << "Board " << m_iHandle << ": Error setting channel " << ch_set.Channel << " DC offset: " << ret << "\n";
-        ret = CAEN_DGTZ_SetChannelTriggerThreshold(m_iHandle, ch_set.Channel, ch_set.TriggerThreshold);
+        ret = CAEN_DGTZ_SetChannelTriggerThreshold(m_iHandle, ch_set.Channel, iBaselineRef - ch_set.TriggerThreshold);
         if (ret != CAEN_DGTZ_Success) cout << "Board " << m_iHandle << ": Error setting channel " << ch_set.Channel << " trigger threshold: " << ret << "\n";
         ret = CAEN_DGTZ_SetTriggerPolarity(m_iHandle, ch_set.Channel, CAEN_DGTZ_TriggerOnFallingEdge);
         ret = CAEN_DGTZ_SetChannelPulsePolarity(m_iHandle, ch_set.Channel, CAEN_DGTZ_PulsePolarityNegative);
         if (CS.IsZLE) {
             ret = CAEN_DGTZ_SetZeroSuppressionMode(m_iHandle, CAEN_DGTZ_ZS_ZLE);
             if (ret != CAEN_DGTZ_Success) cout << "Board " << m_iHandle << ": Error setting channel " << ch_set.Channel << " ZLE mode: " << ret << "\n";
-            ret = CAEN_DGTZ_SetChannelZSParams(m_iHandle, ch_set.Channel, CAEN_DGTZ_ZS_FINE, ch_set.ZLEThreshold, 0);
+            ret = CAEN_DGTZ_SetChannelZSParams(m_iHandle, ch_set.Channel, CAEN_DGTZ_ZS_FINE, iBaselineRef - ch_set.ZLEThreshold, 0);
             address = CAEN_DGTZ_SAM_REG_VALUE + (0x100 * ch_set.Channel);
             data = (ch_set.ZLE_N_LBK << 16) + ch_set.ZLE_N_LFWD;
             ret = WriteRegister(GW_t{address, data, 0xFFFFFFFF});
