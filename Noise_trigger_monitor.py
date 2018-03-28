@@ -73,7 +73,7 @@ for i,ch in enumerate(channels):
     quant = np.array([sum(n[:j]) for j in range(1, len(n))])/(total_time*1e-8)
     plt.plot(ref_baseline - np.arange(1,len(n)), quant, c=cols[i], linestyle='-', label='channel %i' % ch)
     plt.vlines(run_metadata['channel_settings'][ch]['trigger_threshold'], min(quant), max(quant), colors=cols[i], linestyle=ls['trigger'])
-    plt.vlines(run_metadata['channel_settings'][ch]['zle_threshold'], max(quant), max(quant), colors=cols[i], linestyle=ls['zle'])
+    plt.vlines(run_metadata['channel_settings'][ch]['zle_threshold'], min(quant), max(quant), colors=cols[i], linestyle=ls['zle'])
 
 plt.xlabel('Bins below baseline (16000)')
 plt.ylabel('Rate above threshold [Hz]')
