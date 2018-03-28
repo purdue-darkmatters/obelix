@@ -1,6 +1,7 @@
 #include "DAQ.h"
 #include "kbhit.h"
 #include <csignal>
+#include <cmath>
 
 #include <sstream>
 #include <iomanip>
@@ -243,6 +244,9 @@ void DAQ::EndRun() {
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
 
+    long run_size_bytes(0);
+    int log_size(0);
+    char run_size[6];
     mongo::BSONObjBuilder builder;
 
     builder.append("is_zle", config.IsZLE);
@@ -290,19 +294,16 @@ void DAQ::EndRun() {
     fheader.close();
 
     if (!m_bTestRun) {
-        long run_size_bytes(0);
-        int log_size(0);
-        stringstream run_size;
         for (auto& x : m_vEventSizes) run_size_bytes += x;
-        for (log_size = 63; log_size >= 0; log_size--) if ((1 << log_size) & run_size_bytes) break;
+        log_size = log(run_size_bytes)/log(2);
         if (log_size < 20) { // < 1 MB
-            run_size << "1M";
+            sprintf(run_size, "%i%c", 1, 'M');
         } else if (log_size < 30) { // < 1 GB
-            run_size << (run_size_bytes >> 20) << "M";
+            sprintf(run_size, "%li%c", run_size_bytes >> 20, 'M');
         } else if (log_size < 40) { // < 1 TB
-            run_size << (run_size_bytes >> 30) << "G";
+            sprintf(run_size, "%li%c", run_size_bytes >> 30, 'G');
         } else {
-            run_size << (run_size_bytes >> 40) << "T";
+            sprintf(run_size, "%li%c", run_size_bytes >> 40, 'T');
         }
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["name"], config.RunName.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["start_time"], m_tStart.time_since_epoch().count());
@@ -310,7 +311,7 @@ void DAQ::EndRun() {
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["runtime"], chrono::duration_cast<chrono::duration<double>>(tEnd-m_tStart).count());
         sqlite3_bind_int(m_InsertStmt, m_BindIndex["events"], m_vEventSizes.size());
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["source"], (config.IsZLE ? "none" : "LED"), -1, SQLITE_STATIC);
-        sqlite3_bind_text(m_InsertStmt, m_BindIndex["raw_size"], run_size.str().c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(m_InsertStmt, m_BindIndex["raw_size"], run_size, -1, SQLITE_STATIC);
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["comments"], m_sRunComment.c_str(), -1, SQLITE_STATIC);
 
         int rc = sqlite3_step(m_InsertStmt);
