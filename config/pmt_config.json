@@ -5,8 +5,8 @@
         "channel" : 0,
         "enabled" : 1,
         "dc_offset" : 2792,
-        "trigger_threshold" : 50,
-        "zle_threshold" : 25,
+        "trigger_threshold" : 49,
+        "zle_threshold" : 27,
         "zle_lbk_samples" : 20,
         "zle_lfwd_samples" : 100
     },
@@ -16,7 +16,7 @@
         "enabled" : 1,
         "dc_offset" : 3800,
         "trigger_threshold" : 50,
-        "zle_threshold" : 25,
+        "zle_threshold" : 23,
         "zle_lbk_samples" : 20,
         "zle_lfwd_samples" : 100
     },
@@ -35,8 +35,8 @@
         "channel" : 3,
         "enabled" : 1,
         "dc_offset" : 3724,
-        "trigger_threshold" : 30,
-        "zle_threshold" : 15,
+        "trigger_threshold" : 29,
+        "zle_threshold" : 17,
         "zle_lbk_samples" : 20,
         "zle_lfwd_samples" : 100
     },
@@ -46,7 +46,7 @@
         "enabled" : 1,
         "dc_offset" : 3775,
         "trigger_threshold" : 60,
-        "zle_threshold" : 30,
+        "zle_threshold" : 38,
         "zle_lbk_samples" : 20,
         "zle_lfwd_samples" : 100
     },
@@ -55,8 +55,8 @@
         "channel" : 5,
         "enabled" : 1,
         "dc_offset" : 3272,
-        "trigger_threshold" : 50,
-        "zle_threshold" : 25,
+        "trigger_threshold" : 51,
+        "zle_threshold" : 37,
         "zle_lbk_samples" : 20,
         "zle_lfwd_samples" : 100
     },

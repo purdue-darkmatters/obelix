@@ -6,12 +6,13 @@ import matplotlib.pyplot as plt
 import json
 import os
 import sys
+import argparse
 
-if len(sys.argv) != 2:
-    print('Usage: %s path/to/noise/run' % sys.argv[0])
-    sys.exit()
-else:
-    full_path = sys.argv[1]
+parser = argparse.ArgumentParser()
+parser.add_argument('run', type=str, help='path to noise run')
+args = parser.parse_args()
+
+full_path = args.run
 
 if not os.path.exists(full_path):
     print('Can\'t find %s' % (full_path))
@@ -25,7 +26,8 @@ else:
 with open(os.path.join(full_path,'pax_info.json'),'r') as f:
     run_metadata = json.load(f)
     if run_metadata['is_zle']:
-        print('This is ZLE data, we can\' use it')
+        print('This is ZLE data, not noise data')
+        sys.exit()
     else:
         print('Metadata loaded')
 
@@ -46,9 +48,7 @@ with open(os.path.join(full_path, run + '_000000.ast'),'rb') as f:
 
         channel_mask = header['word1']
         is_zle = header['word2'] & (0x80000000)
-        #print('header ', header['word2'])
         event_size = header['word2'] & (0x7FFFFFFF)
-        #print('size bytes ', event_size)
         trigger_timestamp = (header['word3'] << 32) | header['word4']
         channels = []
         for ch in range(32): # max 32 channels
@@ -56,6 +56,7 @@ with open(os.path.join(full_path, run + '_000000.ast'),'rb') as f:
                 channels.append(ch)
 
         events.append(np.reshape(data, (len(channels), -1)))
+
 events = np.array(events)
 print('Loaded %i events' % len(events))
 total_time = len(np.reshape(events[:,0,:],-1))
@@ -65,22 +66,29 @@ plt.figure(figsize=(12,9))
 bins = np.arange(0,2**14 + 1)
 cols = ['black','blue', 'green', 'red', 'magenta', 'cyan', 'yellow']
 ls = {'zle' : ':', 'trigger' : '--'}
+zle_limit = 200
 for i,ch in enumerate(channels):
     here = events[:,i,:]
-    print('Ch %i: Mean %f, std %f' % (ch, np.mean(here), np.std(here)))
-    print('\tTrigger %i, zle %i' % (run_metadata['channel_settings'][ch]['trigger_threshold'], run_metadata['channel_settings'][ch]['zle_threshold']))
-    n, _ = np.histogram(np.reshape(here, -1), bins=bins)
+    trigger_threshold = run_metadata['channel_settings'][ch]['trigger_threshold']
+    zle_threshold = run_metadata['channel_settings'][ch]['trigger_threshold']
+    print('Ch %i: Mean %f, trigger %i, zle %i' % (ch, np.mean(here), trigger_threshold, zle_threshold))
+    n = np.zeros(2 ** 14)
+    for v in np.reshape(here, -1):
+        n[v] += 1
     quant = np.array([sum(n[:j]) for j in range(1, len(n))])/(total_time*1e-8)
-    plt.plot(ref_baseline - np.arange(1,len(n)), quant, c=cols[i], linestyle='-', label='channel %i' % ch)
+    x = ref_baseline - np.arange(1,len(n))
+    plt.plot(x, quant, c=cols[i], linestyle='-', label='channel %i' % ch)
+    for j,v in enumerate(quant[1:]-quant[:-1]):
+        if v >= zle_limit:
+            print('Ch %i recommended ZLE threshold: %i' % (ch, ref_baseline - j))
+            break
     plt.vlines(run_metadata['channel_settings'][ch]['trigger_threshold'], min(quant), max(quant), colors=cols[i], linestyle=ls['trigger'])
-    plt.vlines(run_metadata['channel_settings'][ch]['zle_threshold'], min(quant), max(quant), colors=cols[i], linestyle=ls['zle'])
+    plt.vlines(ref_baseline - j, min(quant), max(quant), colors=cols[i], linestyle=ls['zle'])
 
 plt.xlabel('Bins below baseline (16000)')
 plt.ylabel('Rate above threshold [Hz]')
 plt.yscale('log')
-#plt.xlim(bins[0],bins[-1])
 plt.xlim(-10,110)
-plt.ylim(0.8,)
 plt.legend(loc='upper right')
 
 plt.show()

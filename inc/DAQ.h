@@ -3,6 +3,7 @@
 
 #include "Digitizer.h"
 #include "Event.h"
+#include "kbhit.h"
 
 #include <sqlite3.h>
 #include "mongo/bson/bson.h"
@@ -40,6 +41,7 @@ private:
     void StopAcquisition();
     void StartRun();
     void EndRun();
+    void GetNewRunComment();
     void DoesNothing() {}; // for creation of threads
 
     atomic<bool> m_abSaveWaveforms;
@@ -47,6 +49,7 @@ private:
     atomic<bool> m_abIsFirstEvent;
     atomic<bool> m_abRun;
     atomic<bool> m_abRunThreads;
+    atomic<bool> m_abSuppressOutput;
     atomic<int> m_aiEventsInCurrentFile;
     atomic<int> m_aiEventsInRun;
 
@@ -89,9 +92,6 @@ private:
     void DecodeEvent();
     void WriteEvent();
     void ResetPointers(); // call this while threads aren't active
-    int WaitingToDecode() {return m_iToDecode;}
-    int WaitingToWrite() {return m_iToWrite;}
-
 
     atomic<int> m_iInsertPtr;
     atomic<int> m_iDecodePtr;
@@ -104,6 +104,7 @@ private:
     const int m_iBufferLength;
     const int m_iMaxEventsInRun = 1000000;
 
+    KBHIT kb;
 };
 
 #endif // _DAQ_H_ defined

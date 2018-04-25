@@ -8,7 +8,7 @@
     },
     "record_length" : 
     {
-        "value" : 1024,
+        "value" : 256,
         "comment" : "number of samples in the acquisition window"
     },
     "external_trigger" :
@@ -23,7 +23,7 @@
     },
     "post_trigger" :
     {
-        "value" : 60,
+        "value" : 90,
         "comment" : "percentage of event after trigger"
     },
     "fpio_level" :
@@ -33,7 +33,7 @@
     },
     "events_per_file" :
     {
-        "value" : 10000,
+        "value" : 100000,
         "comment" : "number of events per raw data file"
     },
     "is_zle" :

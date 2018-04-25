@@ -4,18 +4,18 @@ INCDIR = inc
 CFLAGS = -g -Wall -Iinc -std=c++11 -O2
 CPPFLAGS = $(CFLAGS)
 LDFLAGS = -lCAENDigitizer -lmongoclient -lsqlite3 -lpthread -lboost_program_options
-INSTALLDIR = /usr/local/bin
-EXE = obelix
+INSTALL = /usr/local/bin/obelix
+TEST = test_exe
 
 sources := $(wildcard src/*.cpp)
 objects := $(sources:.cpp=.o)
 VPATH = src:inc
 
 exe : $(objects)
-	$(CC) $(CPPFLAGS) -o $(EXE) $(objects) $(LDFLAGS)
+	$(CC) $(CPPFLAGS) -o $(TEST) $(objects) $(LDFLAGS)
 
 install :
-	$(CC) $(CPPFLAGS) -o $(INSTALLDIR)/$(EXE) $(objects) $(LDFLAGS)
+	$(CC) $(CPPFLAGS) -o $(INSTALL) $(objects) $(LDFLAGS)
 
 $(L)%.o : %.cpp %.h %.d
 	$(CC) $(CPPFLAGS) -c $< -o $@
@@ -26,4 +26,4 @@ $(L)%.d : %.cpp %.h
 .PHONY: clean
 
 clean:
-	-rm -f $(objects)
+	-rm -f $(objects) $(TEST)
