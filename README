@@ -12,6 +12,10 @@ sqlite3
 c++ mongo client
 boost
 
+- Installation:
+make
+make install
+
 - Usage:
 $ obelix [options]
 Allowed arguments:

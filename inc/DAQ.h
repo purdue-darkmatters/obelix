@@ -103,6 +103,7 @@ private:
     vector<Event> m_vBuffer;
     const int m_iBufferLength;
     const int m_iMaxEventsInRun = 1000000;
+    const float m_fMaxFileRunTime = 3600.;
 
     KBHIT kb;
 };
