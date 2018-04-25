@@ -299,6 +299,7 @@ void DAQ::EndRun() {
     if (!m_bTestRun) {
         for (auto& x : m_vEventSizes) run_size_bytes += x;
         log_size = log(run_size_bytes)/log(2)/10;
+        log_size = max(log_size, 0);
         sprintf(run_size, "%li%c", max(1l, run_size_bytes >> 10*log_size), sBlockSize[log_size]);
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["name"], config.RunName.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["start_time"], m_tStart.time_since_epoch().count());
@@ -386,7 +387,8 @@ void DAQ::Readout() {
     const string sBlockSize = " kMGT";
     const int iMaxLogSize = sBlockSize.size()-1;
     thread tCommentThread = thread(&DAQ::DoesNothing, this);
-    kb.init();\
+    kb.init();
+    m_abRun = false;
 
     while (!bQuit) {
         if ((!m_abSuppressOutput) && (kb.kbhit())) {
@@ -470,7 +472,7 @@ void DAQ::Readout() {
             cout << left << setw(OutputWidth) << sOutput << flush;
             iTotalBuffer = 0;
             iTotalEvents = 0;
-            if ((FileRunTime >= 3600.) || (m_aiEventsInRun >= m_iMaxEventsInRun)) {
+            if ((FileRunTime >= m_fMaxFileRunTime) || (m_aiEventsInRun >= m_iMaxEventsInRun)) {
                 StopAcquisition();
                 StartAcquisition();
             }
@@ -547,7 +549,7 @@ void DAQ::WriteEvent() {
         if (m_vFileInfos.back()[n_events] >= config.EventsPerFile) {
             fout.close();
             m_vFileInfos.push_back(file_info{0,0,0,0});
-            sprintf(outfilename, "%s%s/%s_%06i.ast", config.RawDataDir.c_str(), config.RunName.c_str(), config.RunName.c_str(), m_vFileInfos.size()-1);
+            sprintf(outfilename, "%s%s/%s_%06i.ast", config.RawDataDir.c_str(), config.RunName.c_str(), config.RunName.c_str(), int(m_vFileInfos.size()-1));
             fout.open(outfilename, ofstream::binary | ofstream::out);
             m_vFileInfos.back()[file_number] = m_vFileInfos.size()-1;
         }
