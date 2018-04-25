@@ -65,7 +65,7 @@
         {
         "board" : 0,
         "register" : "0x810C",
-        "data" : "0x230000B",
+        "data" : "0x13000FF",
         "mask" : "0x7F000FF",
         "comment" : "coincidence requirement, p26"
         },

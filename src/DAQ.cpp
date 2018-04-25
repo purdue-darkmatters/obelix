@@ -1,5 +1,4 @@
 #include "DAQ.h"
-#include "kbhit.h"
 #include <csignal>
 #include <cmath>
 
@@ -29,6 +28,7 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
         cout << "Could not connect to runs database\nSQLITE complains with error " << sqlite3_errmsg(m_RunsDB) << "\n";
         throw DAQException();
     }
+
     m_WriteThread = thread(&DAQ::DoesNothing, this);
 
     try {
@@ -68,11 +68,13 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     m_abSaveWaveforms = false;
     m_bTestRun = true;
     m_abRunThreads = true;
+    m_abSuppressOutput = false;
 
     m_tStart = chrono::high_resolution_clock::now();
     Event::SetUnixTS(m_tStart.time_since_epoch().count());
 
     s_catch_signals();
+
 }
 
 DAQ::~DAQ() {
@@ -248,6 +250,7 @@ void DAQ::EndRun() {
     int log_size(0);
     char run_size[6];
     mongo::BSONObjBuilder builder;
+    const string sBlockSize = "MMGTP";
 
     builder.append("is_zle", config.IsZLE);
     builder.append("run_name", config.RunName);
@@ -295,16 +298,8 @@ void DAQ::EndRun() {
 
     if (!m_bTestRun) {
         for (auto& x : m_vEventSizes) run_size_bytes += x;
-        log_size = log(run_size_bytes)/log(2);
-        if (log_size < 20) { // < 1 MB
-            sprintf(run_size, "%i%c", 1, 'M');
-        } else if (log_size < 30) { // < 1 GB
-            sprintf(run_size, "%li%c", run_size_bytes >> 20, 'M');
-        } else if (log_size < 40) { // < 1 TB
-            sprintf(run_size, "%li%c", run_size_bytes >> 30, 'G');
-        } else {
-            sprintf(run_size, "%li%c", run_size_bytes >> 40, 'T');
-        }
+        log_size = log(run_size_bytes)/log(2)/10;
+        sprintf(run_size, "%li%c", max(1l, run_size_bytes >> 10*log_size), sBlockSize[log_size]);
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["name"], config.RunName.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["start_time"], m_tStart.time_since_epoch().count());
         sqlite3_bind_int64(m_InsertStmt, m_BindIndex["end_time"], tEnd.time_since_epoch().count());
@@ -342,7 +337,7 @@ void DAQ::StartAcquisition() {
     m_abRunThreads = false;
     for (auto& th : m_DecodeThreads) if (th.joinable()) th.join();
     if (m_WriteThread.joinable()) m_WriteThread.join();
-    digis.front()->StartAcquisition(); // signal propagates
+    digis.front()->StartAcquisition();
     m_abRun = true;
     ResetPointers();
     m_abIsFirstEvent = true;
@@ -362,6 +357,14 @@ void DAQ::StopAcquisition() {
     if (m_abSaveWaveforms) EndRun();
 }
 
+void DAQ::GetNewRunComment() {
+    cout << "Enter new comment for run:\n";
+    kb.deinit();
+    getline(cin, m_sRunComment);
+    kb.init();
+    m_abSuppressOutput = false;
+}
+
 void DAQ::Readout() {
     cout << setbase(10) << flush;
     cout << "Ready to go.\n";
@@ -370,6 +373,7 @@ void DAQ::Readout() {
               << " [t] Force trigger\n"
               << " [w] Toggle writing events to disk\n"
               << " [T] Toggle automatic runs database interfacing\n"
+              << " [c] Set run comment\n"
               << " [q] Quit\n";
     unsigned int iNumEvents(0), iBufferSize(0), iTotalBuffer(0), iTotalEvents(0);
     bool bTriggerNow(false), bQuit(false);
@@ -378,12 +382,14 @@ void DAQ::Readout() {
     int FileRunTime(0), iLogReadSize(0), OutputWidth(60);
     char input('0');
     double dLoopTime(0);
-    array<stringstream, 5> sOutputs;
-    stringstream sOutput;
-    const string delim(", ");
+    char sOutput[128];
+    const string sBlockSize = " kMGT";
+    const int iMaxLogSize = sBlockSize.size()-1;
+    thread tCommentThread = thread(&DAQ::DoesNothing, this);
+    kb.init();\
 
     while (!bQuit) {
-        if (kbhit()) {
+        if ((!m_abSuppressOutput) && (kb.kbhit())) {
             cin.get(input);
             switch(input) {
                 case 's' :
@@ -397,23 +403,26 @@ void DAQ::Readout() {
                     bTriggerNow = true;
                     break;
                 case 'w' :
-                    if (m_abRun)
+                    if (m_abRun) {
                         cout << "Please stop acquisition first with 's'\n";
-                    else {
+                    } else {
                         m_abSaveWaveforms = !m_abSaveWaveforms;
                         cout << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled\n";
-                        StartAcquisition();
                     }
+                    if (m_abSaveWaveforms) StartAcquisition();
                     break;
                 case 'T' :
                     m_bTestRun = !m_bTestRun;
                     cout << "Test run " << (m_bTestRun ? "en" : "dis") << "abled\n";
                     break;
                 case 'q' :
-                    if (m_abRun)
-                        cout << "Please stop acquisition first with 's'\n";
-                    else
-                        bQuit = true;
+                    if (m_abRun) StopAcquisition();
+                    bQuit = true;
+                    break;
+                case 'c' :
+                    if (tCommentThread.joinable()) tCommentThread.join();
+                    m_abSuppressOutput = true;
+                    tCommentThread = thread(&DAQ::GetNewRunComment, this);
                     break;
                 default: break;
             }
@@ -427,43 +436,38 @@ void DAQ::Readout() {
             digis.front()->SWTrigger();
             bTriggerNow = false;
         }
-
-        // read from digitizer into open buffer
+        // read from digitizer into buffer
         iNumEvents = 0;
         for (auto& dig : digis) {
-            iNumEvents = dig->ReadBuffer(iBufferSize);
+            iNumEvents = dig->ReadBuffer(iBufferSize); // all digitizers should read same number of events, don't want to double-count
             iTotalBuffer += iBufferSize;
-            iTotalEvents += iNumEvents;
         }
+        iTotalEvents += iNumEvents;
         if (iNumEvents > 0) AddEvents(buffers, iNumEvents);
-
 
         ThisLoop = chrono::system_clock::now();
         dLoopTime = chrono::duration_cast<chrono::duration<double>>(ThisLoop - PrevPrintTime).count();
-        if (dLoopTime > 1.0) {
-            for (iLogReadSize = 31; iLogReadSize >= 0; iLogReadSize--) if ((1 << iLogReadSize) & iTotalBuffer) break;
-            if (iLogReadSize < 10) { // ~B/s
-                sOutputs[0] << setprecision(3) << iTotalBuffer/dLoopTime << " B/s";
-            } else if (iLogReadSize < 20) { // ~kB/s
-                sOutputs[0] << setprecision(3) << (iTotalBuffer >> 10)/dLoopTime << " kB/s";
-            } else { // ~MB/s
-                sOutputs[0] << setprecision(3) << (iTotalBuffer >> 20)/dLoopTime << " MB/s";
-            }
-            sOutputs[1] << setprecision(3) << iTotalEvents/dLoopTime << " Hz";
+        if ((dLoopTime > 1.0) && (!m_abSuppressOutput)) {
+            iLogReadSize = log(iTotalBuffer)/log(2)/10;
+            iLogReadSize = max(0, iLogReadSize);
+            iLogReadSize = min(iLogReadSize, iMaxLogSize);
             FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
-            sOutputs[2] << FileRunTime << " sec";
-            sOutputs[3] << m_iToDecode;
-            if (m_abSaveWaveforms) {
-                sOutputs[3] << "/" << m_iToWrite;
-                sOutputs[4] << m_aiEventsInCurrentFile << "/" << m_aiEventsInRun << " ev";
-            }
-            sOutput << "\rStatus: ";
-            for (auto& s : sOutputs) {
-                if (s.str() != "") sOutput << s.str() << delim;
-                s.str("");
-            }
-            cout << left << setw(OutputWidth) << sOutput.str() << flush;
-            sOutput.str("");
+            if (m_abSaveWaveforms) sprintf(sOutput, "\rStatus: %.1f %cB/s | %.1f Hz | %i sec | %i/%i | %i/%i ev |",
+                                                    (iTotalBuffer >> (iLogReadSize*10))/dLoopTime,
+                                                    sBlockSize[iLogReadSize],
+                                                    iTotalEvents/dLoopTime,
+                                                    FileRunTime,
+                                                    m_iToDecode.load(),
+                                                    m_iToWrite.load(),
+                                                    m_aiEventsInCurrentFile.load(),
+                                                    m_aiEventsInRun.load());
+            else sprintf(sOutput, "\rStatus: %.1f %cB/s | %.1f Hz | %i sec | %i",
+                                                    (iTotalBuffer >> (iLogReadSize*10))/dLoopTime,
+                                                    sBlockSize[iLogReadSize],
+                                                    iTotalEvents/dLoopTime,
+                                                    FileRunTime,
+                                                    m_iToDecode.load());
+            cout << left << setw(OutputWidth) << sOutput << flush;
             iTotalBuffer = 0;
             iTotalEvents = 0;
             if ((FileRunTime >= 3600.) || (m_aiEventsInRun >= m_iMaxEventsInRun)) {
@@ -476,9 +480,10 @@ void DAQ::Readout() {
         if (s_interrupted) {
             StopAcquisition();
             bQuit = true;
-            m_abRunThreads = false;
         }
     } // run loop
+    if (tCommentThread.joinable()) tCommentThread.join();
+    kb.deinit();
 } // Readout()
 
 void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
@@ -522,7 +527,6 @@ void DAQ::DecodeEvent() {
         while ((m_iToDecode == 0) && (m_abRunThreads) && (s_interrupted == 0)) this_thread::yield();
 
         if ((!m_abRunThreads) || (s_interrupted)) return;
-        //cout << "Decoded an event\n";
         m_vBuffer[m_iDecodePtr].Decode();
 
         m_iToDecode--;
@@ -536,15 +540,15 @@ void DAQ::WriteEvent() {
         while ((m_iToWrite == 0 || !m_abSaveWaveforms) && (m_abRunThreads) && (s_interrupted == 0)) this_thread::yield();
         int NumBytes(0);
         unsigned int EvNum(0);
+        char outfilename[256];
 
         if ((!m_abRunThreads) || (s_interrupted)) return;
 
         if (m_vFileInfos.back()[n_events] >= config.EventsPerFile) {
             fout.close();
             m_vFileInfos.push_back(file_info{0,0,0,0});
-            stringstream ss;
-            ss << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
-            fout.open(ss.str(), ofstream::binary | ofstream::out);
+            sprintf(outfilename, "%s%s/%s_%06i.ast", config.RawDataDir.c_str(), config.RunName.c_str(), config.RunName.c_str(), m_vFileInfos.size()-1);
+            fout.open(outfilename, ofstream::binary | ofstream::out);
             m_vFileInfos.back()[file_number] = m_vFileInfos.size()-1;
         }
 
@@ -562,7 +566,6 @@ void DAQ::WriteEvent() {
         m_vFileInfos.back()[n_events]++;
         m_aiEventsInCurrentFile = m_vFileInfos.back()[n_events];
         m_aiEventsInRun = m_vEventSizes.size();
-
         m_iToWrite--;
 
         m_iWritePtr = (m_iWritePtr+1) % m_iBufferLength;

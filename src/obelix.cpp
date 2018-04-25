@@ -4,7 +4,7 @@
 namespace po = boost::program_options;
 
 int main(int argc, char** argv) {
-    const string version("1.3.1");
+    const string version("1.3.2");
     const int default_buffer_size(1024);
     int buffer_length(0);
     string run_comment("");
@@ -35,11 +35,11 @@ int main(int argc, char** argv) {
     cout << "Welcome to Obelix!\n";
     if (vm.count("help")) {
         cout << general_options << "\n";
-        return 1;
+        return 0;
     }
     if (vm.count("version")) {
         cout << "Version " << version << "\n";
-        return 1;
+        return 0;
     }
     if (not vm.count("config")) {
         cout << "Config file required\n";

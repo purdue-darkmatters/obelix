@@ -18,12 +18,14 @@ Allowed arguments:
   -h [ --help ]         produce this message
   -c [ --config ] arg   specify config file (required)
   -v [ --version ]      output current version and return
+  -C [ --comment ] arg  specify comment for runs DB
 
 During operation, there are a few inputs:
 s - start/stop acquisition
 t - force trigger
 w - toggle writing events to disk. Acquisition must be stopped. Default off
 T - toggle runs database interfacing. Default off.
+c - change the runs db comment.
 q - quit. Acquisition must be stopped.
 
 - What it does:
