@@ -250,7 +250,7 @@ void DAQ::EndRun() {
     int log_size(0);
     char run_size[6];
     mongo::BSONObjBuilder builder;
-    const string sBlockSize = "MMGTP";
+    const string sBlockSize = " MMGTP";
 
     builder.append("is_zle", config.IsZLE);
     builder.append("run_name", config.RunName);
@@ -298,7 +298,7 @@ void DAQ::EndRun() {
 
     if (!m_bTestRun) {
         for (auto& x : m_vEventSizes) run_size_bytes += x;
-        log_size = log(run_size_bytes)/log(2)/10;
+        log_size = log2(run_size_bytes)/10;
         log_size = max(log_size, 0);
         sprintf(run_size, "%li%c", max(1l, run_size_bytes >> 10*log_size), sBlockSize[log_size]);
         sqlite3_bind_text(m_InsertStmt, m_BindIndex["name"], config.RunName.c_str(), -1, SQLITE_STATIC);
@@ -380,7 +380,7 @@ void DAQ::Readout() {
     bool bTriggerNow(false), bQuit(false);
     auto PrevPrintTime = chrono::system_clock::now();
     chrono::system_clock::time_point ThisLoop;
-    int FileRunTime(0), iLogReadSize(0), OutputWidth(60);
+    int FileRunTime(0), iLogReadSize(0), OutputWidth(80);
     char input('0');
     double dLoopTime(0);
     char sOutput[128];
@@ -450,11 +450,11 @@ void DAQ::Readout() {
         ThisLoop = chrono::system_clock::now();
         dLoopTime = chrono::duration_cast<chrono::duration<double>>(ThisLoop - PrevPrintTime).count();
         if ((dLoopTime > 1.0) && (!m_abSuppressOutput)) {
-            iLogReadSize = log(iTotalBuffer)/log(2)/10;
+            iLogReadSize = log2(iTotalBuffer)/10;
             iLogReadSize = max(0, iLogReadSize);
             iLogReadSize = min(iLogReadSize, iMaxLogSize);
             FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
-            if (m_abSaveWaveforms) sprintf(sOutput, "\rStatus: %.1f %cB/s | %.1f Hz | %i sec | %i/%i | %i/%i ev |",
+            if (m_abSaveWaveforms) sprintf(sOutput, "\rStatus: %4.1f %cB/s | %5i Hz | %4i sec | %i/%i | %6i/%6i ev |",
                                                     (iTotalBuffer >> (iLogReadSize*10))/dLoopTime,
                                                     sBlockSize[iLogReadSize],
                                                     iTotalEvents/dLoopTime,
@@ -463,7 +463,7 @@ void DAQ::Readout() {
                                                     m_iToWrite.load(),
                                                     m_aiEventsInCurrentFile.load(),
                                                     m_aiEventsInRun.load());
-            else sprintf(sOutput, "\rStatus: %.1f %cB/s | %.1f Hz | %i sec | %i",
+            else sprintf(sOutput, "\rStatus: %4.1f %cB/s | %5i Hz | %4i sec | %i",
                                                     (iTotalBuffer >> (iLogReadSize*10))/dLoopTime,
                                                     sBlockSize[iLogReadSize],
                                                     iTotalEvents/dLoopTime,
