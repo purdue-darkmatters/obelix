@@ -25,16 +25,16 @@ static void s_catch_signals() {
 DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     int rc = sqlite3_open_v2(runs_db_addr.c_str(), &m_RunsDB, SQLITE_OPEN_READWRITE, NULL);
     if (rc != SQLITE_OK) {
-        cout << "Could not connect to runs database\nSQLITE complains with error " << sqlite3_errmsg(m_RunsDB) << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Could not connect to runs database. SQLITE complains with error " << sqlite3_errmsg(m_RunsDB);
         throw DAQException();
-    }
+    } else BOOST_LOG_TRIVIAL(debug) << "Runs db connection made";
 
     m_WriteThread = thread(&DAQ::DoesNothing, this);
 
     try {
         m_vBuffer.assign(BufferLength, Event());
     } catch (exception& e) {
-        cout << "Could not allocate memory for " << BufferLength << " events!\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Could not allocate memory for " << BufferLength << " events!";
         throw bad_alloc();
     }
 
@@ -51,9 +51,9 @@ DAQ::DAQ(int BufferLength) : m_iBufferLength(BufferLength) {
     m_BindIndex["raw_size"] = 7;
     m_BindIndex["comments"] = 8;
     if (rc != SQLITE_OK) {
-        cout << "Could not prepare database statement\nError code " << rc << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Could not prepare database statement, error code " << rc;
         throw DAQException();
-    }
+    } else BOOST_LOG_TRIVIAL(debug) << "Database statement prepared";
 
     m_iInsertPtr = 0;
     m_iDecodePtr = 0;
@@ -87,134 +87,134 @@ DAQ::~DAQ() {
     sqlite3_finalize(m_InsertStmt);
     sqlite3_close_v2(m_RunsDB);
     m_RunsDB = nullptr;
-    cout << "\nShutting down DAQ\n";
+    BOOST_LOG_TRIVIAL(info) << "Shutting down DAQ";
 }
 
 void DAQ::Setup(const string& filename) {
-    cout << "Parsing config file " << filename << "...\n";
+    BOOST_LOG_TRIVIAL(info) << "Parsing config file " << filename << "...";
     string temp(""), pmt_config_file(filename.substr(0, filename.find_last_of('/')) + "/pmt_config.json");
-    int link_number(0), conet_node(0), base_address(0);
+    int link_number(0), conet_node(0), base_address(0), board(-1);
     ChannelSettings_t ChanSet;
     GW_t GW;
     string json_string(""), str("");
     ifstream fin(filename, ifstream::in);
     if (!fin.is_open()) {
-        cout << "Could not open " << filename << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Could not open " << filename;
         throw DAQException();
-    }
+    } else BOOST_LOG_TRIVIAL(debug) << "Opened " << filename;
     while (getline(fin, str)) json_string += str;
     try {
         config_dict = mongo::fromjson(json_string);
     } catch (exception& e) {
-        cout << "Error parsing " << filename << ". Is it valid json?\n" << e.what() << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Error parsing " << filename << ". Is it valid json? " << e.what();
         throw DAQException();
     }
     fin.close();
-    // will need some more values in config json about board numbers
-    ConfigSettings_t CS;
-    try {
-        CS.RecordLength = config_dict["record_length"]["value"].Int();
-        CS.PostTrigger = config_dict["post_trigger"]["value"].Int();
-        CS.BlockTransfer = config_dict["block_transfer"]["value"].Int();
-        config.EventsPerFile = config_dict["events_per_file"]["value"].Int();
-        temp = config_dict["is_zle"]["value"].String();
-        if (temp == "no") {CS.IsZLE = false; config.IsZLE = false;}
-        else if (temp == "yes") {CS.IsZLE = true; config.IsZLE = true;}
-        else cout << "Invalid ZLE config setting: " << temp << "\n";
 
-        temp = config_dict["fpio_level"]["value"].String();
-        if (temp == "ttl") CS.FPIO = CAEN_DGTZ_IOLevel_TTL;
-        else if (temp == "nim") CS.FPIO = CAEN_DGTZ_IOLevel_NIM;
-        else cout << "Invalid front panel setting: " << temp << "\n";
+    vector<ConfigSettings_t> CS;
+    try {
+        config.RawDataDir = config_dict["raw_data_dir"]["value"].String();
+        for (auto& d : config_dict["digitizers"].Array()) {
+            link_number = d["link_number"].Int();
+            conet_node = d["conet_node"].Int();
+            base_address = d["base_address"].Int();
+            try {
+                digis.push_back(unique_ptr<Digitizer>(new Digitizer(link_number, conet_node, base_address)));
+                CS.push_back(ConfigSettings_t{});
+            } catch (exception& e) {
+                BOOST_LOG_TRIVIAL(fatal) << "Could not allocate digitizer! " << e.what();
+                throw DAQException();
+            }
+        }
+
+        for (auto& gw : config_dict["registers"].Array()) {
+            board = gw["board"].Int();
+            GW.addr = stoi(gw["register"].String(), nullptr, 16);
+            GW.data = stoi(gw["data"].String(), nullptr, 16);
+            GW.mask = stoi(gw["mask"].String(), nullptr, 16);
+            if (board == -1) for (auto& cs : CS) cs.GenericWrites.push_back(GW);
+            else CS[board].GenericWrites.push_back(GW);
+            config.GWs.push_back(GW);
+        }
     } catch (exception& e) {
-        cout << "Error in config file block 1: " << e.what() << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Error in config file block 1: " << e.what();
         throw DAQException();
     }
 
     try {
-        config.RawDataDir = config_dict["raw_data_dir"]["value"].String();
-        link_number = config_dict["digitizers"]["link_number"].Int();
-        conet_node = config_dict["digitizers"]["conet_node"].Int();
-        base_address = config_dict["digitizers"]["base_address"].Int();
-
-        temp = config_dict["external_trigger"]["value"].String();
-        if (temp == "acquisition_only") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_ONLY;
-        else if (temp == "acquisition_and_trgout") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
-        else if (temp == "disabled") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
-        else if (temp == "trgout_only") CS.ExtTriggerMode = CAEN_DGTZ_TRGMODE_EXTOUT_ONLY;
-        else cout << "Invalid external trigger value: " << temp << "\n";
-
-        temp = config_dict["channel_trigger"]["value"].String();
-        if (temp == "acquisition_only") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_ONLY;
-        else if (temp == "acquisition_and_trgout") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT;
-        else if (temp == "disabled") CS.ChTriggerMode = CAEN_DGTZ_TRGMODE_DISABLED;
-        else cout << "Invalid channel trigger value: " << temp << "\n";
-
-        for (auto& gw : config_dict["registers"].Array()) {
-            GW.addr = stoi(gw["register"].String(), nullptr, 16);
-            GW.data = stoi(gw["data"].String(), nullptr, 16);
-            GW.mask = stoi(gw["mask"].String(), nullptr, 16);
-            CS.GenericWrites.push_back(GW);
+        for (auto& cs : CS) {
+            cs.RecordLength = config_dict["record_length"]["value"].Int();
+            cs.PostTrigger = config_dict["post_trigger"]["value"].Int();
+            cs.BlockTransfer = config_dict["block_transfer"]["value"].Int();
+            cs.IsZLE = ZLE.at(config_dict["is_zle"]["value"].String()); // operator[] throws esoteric errors
+            cs.FPIO = FPIOlevel.at(config_dict["fpio_level"]["value"].String());
+            cs.ExtTriggerMode = TriggerMode.at(config_dict["external_trigger"]["value"].String());
+            cs.ChTriggerMode = TriggerMode.at(config_dict["channel_trigger"]["value"].String());
+            cs.EnableMask = 0;
         }
+        config.EventsPerFile = config_dict["events_per_file"]["value"].Int();
+        config.RecordLength = config_dict["record_length"]["value"].Int();
+        config.BlockTransfer = config_dict["block_transfer"]["value"].Int();
+        config.IsZLE = ZLE.at(config_dict["is_zle"]["value"].String());
+        BOOST_LOG_TRIVIAL(debug) << "Events per file: " << config.EventsPerFile;
+        BOOST_LOG_TRIVIAL(debug) << "Record length: " << config.RecordLength;
+        BOOST_LOG_TRIVIAL(debug) << "Block transfer: " << config.BlockTransfer;
+        BOOST_LOG_TRIVIAL(debug) << "Is ZLE: " << config.IsZLE;
+
     } catch (exception& e) {
-        cout << "Error in config file block 2: " << e.what() << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Error in config file block 2: " << e.what();
         throw DAQException();
     }
 
     try {
         for (int i = 0; i < config_dict["decode_threads"]["value"].Int(); i++) m_DecodeThreads.push_back(thread(&DAQ::DoesNothing, this));
     } catch (exception& e) {
-        cout << "Error starting decode threads\n" << e.what() << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Error starting decode threads. " << e.what();
         throw DAQException();
     }
 
     fin.open(pmt_config_file, ifstream::in);
     if (!fin.is_open()) {
-        cout << "Could not open " << pmt_config_file << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Could not open " << pmt_config_file;
         throw DAQException();
-    }
+    } else BOOST_LOG_TRIVIAL(debug) << "Opened " << pmt_config_file;
     json_string = "\0";
     while (getline(fin, str)) json_string += str;
     fin.close();
     try {
         config_dict = mongo::fromjson(json_string);
     } catch (exception& e) {
-        cout << "Error parsing " << pmt_config_file << ". Is it valid json?\n" << e.what() << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Error parsing " << pmt_config_file << ". Is it valid json? " << e.what();
         throw DAQException();
     }
 
     try {
-        CS.EnableMask = 0;
         for (auto& cs : config_dict["channels"].Array()) {
+            ChanSet.Board               = cs["board"].Int();
             ChanSet.Channel             = cs["channel"].Int();
             ChanSet.Enabled             = cs["enabled"].Int();
             ChanSet.DCoffset            = cs["dc_offset"].Int();
             ChanSet.TriggerThreshold    = cs["trigger_threshold"].Int();
-            ChanSet.TriggerMode         = CS.ChTriggerMode;
+            ChanSet.TriggerMode         = CS[board].ChTriggerMode;
             ChanSet.ZLEThreshold        = cs["zle_threshold"].Int();
             ChanSet.ZLE_N_LFWD          = cs["zle_lfwd_samples"].Int();
             ChanSet.ZLE_N_LBK           = cs["zle_lbk_samples"].Int();
-            if (ChanSet.Enabled) CS.EnableMask |= (1 << ChanSet.Channel);
-            CS.ChannelSettings.push_back(ChanSet);
+            if (ChanSet.Enabled) CS[ChanSet.Board].EnableMask |= (1 << ChanSet.Channel);
+            CS[ChanSet.Board].ChannelSettings.push_back(ChanSet);
             config.ChannelSettings.push_back(ChanSet);
+            BOOST_LOG_TRIVIAL(debug) << "Board " << ChanSet.Board << " ch " << ChanSet.Channel << " dc " << ChanSet.DCoffset << " trig " << ChanSet.TriggerThreshold
+                << " ZLE " << ChanSet.ZLEThreshold;
         }
     } catch (exception& e) {
         cout << "Error in config file block 3: " << e.what() << "\n";
         throw DAQException();
     }
 
-    try {
-        digis.push_back(unique_ptr<Digitizer>(new Digitizer(link_number, conet_node, base_address)));
-    } catch (exception& e) {
-        cout << "Could not allocate digitizer!\n" << e.what() << "\n";
-        throw DAQException();
+    for (unsigned i = 0; i < digis.size(); i++) {
+        digis[i]->ProgramDigitizer(CS[i]);
+        buffers.push_back(digis[i]->GetBuffer());
     }
-
-    for (auto& dig : digis) {
-        dig->ProgramDigitizer(CS);
-        buffers.push_back(dig->GetBuffer());
-    }
-
+    BOOST_LOG_TRIVIAL(debug) << "Setup done";
 }
 
 void DAQ::StartRun() {
@@ -226,7 +226,7 @@ void DAQ::StartRun() {
     char temp[32];
     strftime(temp, sizeof(temp), "%Y%m%d_%H%M", localtime(&rawtime));
     config.RunName = temp;
-    cout << "\nStarting run " << config.RunName << "\n";
+    BOOST_LOG_TRIVIAL(info) << "Starting run " << config.RunName;
 
     m_vFileInfos.push_back(file_info{0,0,0,0});
     string command = "mkdir " + config.RawDataDir + config.RunName;
@@ -235,14 +235,14 @@ void DAQ::StartRun() {
     fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
     fout.open(fullfilename.str(), ofstream::binary | ofstream::out);
     if (!fout.is_open()) {
-        cout << "Could not open " << fullfilename.str() << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Could not open " << fullfilename.str();
         throw DAQException();
-    }
+    } else BOOST_LOG_TRIVIAL(debug) << "Opened " << fullfilename.str();
 }
 
 void DAQ::EndRun() {
     if (!fout.is_open()) return;
-    cout << "\nEnding run " << config.RunName << "\n";
+    BOOST_LOG_TRIVIAL(info) << "Ending run " << config.RunName;
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
 
@@ -262,14 +262,28 @@ void DAQ::EndRun() {
     vector<mongo::BSONObj> chan_sets;
     for (auto& cs : config.ChannelSettings) {
         mongo::BSONObjBuilder ch;
+        ch.append("board", cs.Board);
         ch.append("channel", cs.Channel);
         ch.append("enabled", cs.Enabled);
         ch.append("trigger_threshold", cs.TriggerThreshold);
         ch.append("zle_threshold", cs.ZLEThreshold);
+        ch.append("zle_lbk", cs.ZLE_N_LBK);
+        ch.append("zle_lfw", cs.ZLE_N_LFWD);
 
         chan_sets.push_back(ch.obj());
     }
     builder.append("channel_settings", chan_sets);
+
+    vector<mongo::BSONObj> GW;
+    for (auto& gw : config.GWs) {
+        mongo::BSONObjBuilder gws;
+        gws.append("address", gw.addr);
+        gws.append("data", gw.data);
+        gws.append("mask", gw.mask);
+
+        GW.push_back(gws.obj());
+    }
+    builder.append("generic_writes", GW);
 
     vector<mongo::BSONObj> file_nos;
     for (auto& f : m_vFileInfos) {
@@ -290,7 +304,7 @@ void DAQ::EndRun() {
     ss << config.RawDataDir << config.RunName << "/pax_info.json";
     ofstream fheader(ss.str(), ofstream::out);
     if (!fheader.is_open()) {
-        cout << "Could not open file header: " << ss.str() << "\n";
+        BOOST_LOG_TRIVIAL(fatal) << "Could not open file header " << ss.str();
         throw DAQException();
     }
     fheader << tojson(builder.obj(), mongo::Strict, true);
@@ -312,16 +326,16 @@ void DAQ::EndRun() {
 
         int rc = sqlite3_step(m_InsertStmt);
         if (rc != SQLITE_DONE) {
-            cout << "Couldn't add entry to runs databse\nError code " << rc << "\n";
-        }
+            BOOST_LOG_TRIVIAL(error) << "Couldn't add entry to runs databse, error code " << rc;
+        } else BOOST_LOG_TRIVIAL(debug) << "Statement stepped";
         rc = sqlite3_reset(m_InsertStmt);
         if (rc != SQLITE_OK) {
-            cout << "Couldn't reset statement\nError code " << rc << "\n";
-        }
+            BOOST_LOG_TRIVIAL(error) << "Couldn't reset statement, error code " << rc;
+        } else BOOST_LOG_TRIVIAL(debug) << "Statement reset";
         rc = sqlite3_clear_bindings(m_InsertStmt);
         if (rc != SQLITE_OK) {
-            cout << "Couldn't clear bindings\nError code " << rc << "\n";
-        }
+            BOOST_LOG_TRIVIAL(error) << "Couldn't clear bindings, error code " << rc;
+        } else BOOST_LOG_TRIVIAL(debug) << "Bindings cleared";
     }
 
     m_vEventSizes.clear();
@@ -368,7 +382,7 @@ void DAQ::GetNewRunComment() {
 
 void DAQ::Readout() {
     cout << setbase(10) << flush;
-    cout << "Ready to go.\n";
+    BOOST_LOG_TRIVIAL(info) << "Ready to go";
     cout << "Commands:"
               << " [s] Start/stop\n"
               << " [t] Force trigger\n"
@@ -406,16 +420,16 @@ void DAQ::Readout() {
                     break;
                 case 'w' :
                     if (m_abRun) {
-                        cout << "Please stop acquisition first with 's'\n";
+                        BOOST_LOG_TRIVIAL(error) << "Please stop acquisition first with 's'";
                     } else {
                         m_abSaveWaveforms = !m_abSaveWaveforms;
-                        cout << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled\n";
+                        BOOST_LOG_TRIVIAL(info) << "Writing to disk " << (m_abSaveWaveforms ? "en" : "dis") << "abled";
                     }
                     if (m_abSaveWaveforms) StartAcquisition();
                     break;
                 case 'T' :
                     m_bTestRun = !m_bTestRun;
-                    cout << "Test run " << (m_bTestRun ? "en" : "dis") << "abled\n";
+                    BOOST_LOG_TRIVIAL(info) << "Test run " << (m_bTestRun ? "en" : "dis") << "abled";
                     break;
                 case 'q' :
                     if (m_abRun) StopAcquisition();
@@ -434,7 +448,7 @@ void DAQ::Readout() {
             continue;
         }
         if (bTriggerNow) {
-            cout << "Triggering\n";
+            BOOST_LOG_TRIVIAL(info) << "Triggering";
             digis.front()->SWTrigger();
             bTriggerNow = false;
         }
@@ -514,7 +528,7 @@ void DAQ::AddEvents(vector<const char*>& buffer, unsigned int NumEvents) {
         m_iToDecode++;
         while (m_abSaveWaveforms && (m_iWritePtr == (m_iInsertPtr+1)%m_iBufferLength) && (s_interrupted == 0) && (m_iToWrite != 0)) {
             if (bCallForHelp) {
-                cout << "Deadtime warning\n";
+                BOOST_LOG_TRIVIAL(warning) << "Deadtime warning";
                 bCallForHelp = false;
             }
             this_thread::yield();
@@ -530,7 +544,7 @@ void DAQ::DecodeEvent() {
 
         if ((!m_abRunThreads) || (s_interrupted)) return;
         m_vBuffer[m_iDecodePtr].Decode();
-
+        BOOST_LOG_TRIVIAL(debug) << "Event decoded at ptr " << m_iDecodePtr;
         m_iToDecode--;
         m_iToWrite++;
         m_iDecodePtr = (m_iDecodePtr+1) % m_iBufferLength;
@@ -569,7 +583,7 @@ void DAQ::WriteEvent() {
         m_aiEventsInCurrentFile = m_vFileInfos.back()[n_events];
         m_aiEventsInRun = m_vEventSizes.size();
         m_iToWrite--;
-
+        BOOST_LOG_TRIVIAL(debug) << "Event written at ptr " << m_iWritePtr;
         m_iWritePtr = (m_iWritePtr+1) % m_iBufferLength;
     }
 }

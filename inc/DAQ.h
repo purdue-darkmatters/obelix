@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <cctype>
 #include <chrono>
-#include <map>
 
 using file_info = array<unsigned int, 4>;
 
@@ -58,7 +57,7 @@ private:
     sqlite3_stmt* m_InsertStmt;
     string m_sRunComment;
     map<string, int> m_BindIndex;
-    vector<unique_ptr<Digitizer>> digis; // make vector
+    vector<unique_ptr<Digitizer>> digis;
     vector<thread> m_DecodeThreads;
     thread m_WriteThread;
 
@@ -73,12 +72,15 @@ private:
 
     mongo::BSONObj config_dict;
     struct {
+        int RecordLength;
+        int BlockTransfer;
         unsigned int EventsPerFile;
         int IsZLE;
         string RawDataDir;
         string RunName;
         vector<ChannelSettings_t> ChannelSettings;
         int PostTrigger;
+        vector<GW_t> GWs;
     } config;
 
     enum file_info_vals {

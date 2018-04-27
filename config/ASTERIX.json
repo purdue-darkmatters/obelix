@@ -1,11 +1,11 @@
 {
-    "digitizers" :
-    {
-        "type" : "PCI",
-        "link_number" : 0,
-        "conet_node" : 0,
-        "base_address" : 0
-    },
+    "digitizers" : [
+        {
+            "link_number" : 0,
+            "conet_node" : 0,
+            "base_address" : 0
+        }
+    ],
     "record_length" :
     {
         "value" : 4096,
@@ -26,15 +26,10 @@
         "value" : 60,
         "comment" : "percentage of event after trigger"
     },
-    "trigger_edge" :
-    {
-        "value" : "falling",
-        "comment" : "options are 'falling' or 'rising'"
-    },
     "fpio_level" :
     {
-        "value" : "ttl",
-        "comment" : "options are 'ttl' or 'nim'"
+        "value" : "nim",
+        "comment" : "front panel io level. Options are 'ttl' or 'nim'"
     },
     "events_per_file" :
     {
@@ -44,12 +39,12 @@
     "is_zle" :
     {
         "value" : "yes",
-        "comment" : "if the data is zle-encoded or not"
+        "comment" : "if the data is zle-encoded or not, yes/no"
     },
     "channel_trigger" :
     {
         "value" : "acquisition_only",
-        "comment" : "auto-trigger settings. Options are 'disabled', 'acquisition_only', 'acquisition_and_trgout'."
+        "comment" : "self-trigger settings. Options are 'disabled', 'acquisition_only', 'acquisition_and_trgout'."
     },
     "raw_data_dir" :
     {
@@ -59,22 +54,15 @@
     "decode_threads" :
     {
         "value" : 1,
-        "comment" : "how many threads worth of event decoding you want. 1 is fine for now"
+        "comment" : "how many threads worth of event decoding you want. 1 is fine for now, 0 will break things"
     },
     "registers" : [
         {
-        "board" : 0,
-        "register" : "0x810C",
-        "data" : "0x13000FF",
-        "mask" : "0x7F000FF",
-        "comment" : "coincidence requirement, p26"
-        },
-        {
-        "board" : 0,
-        "register" : "0x8084",
-        "data" : "0x1",
-        "mask" : "0xFFF",
-        "comment" : "time under threshold, p13"
+            "board" : -1,
+            "register" : "0x810C",
+            "data" : "0x13000FF",
+            "mask" : "0x7F000FF",
+            "comment" : "coincidence requirement, p26"
         }
     ]
 }
