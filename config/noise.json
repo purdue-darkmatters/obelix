@@ -13,7 +13,7 @@
     },
     "external_trigger" :
     {
-        "value" : "acquisition_only",
+        "value" : "disabled",
         "comment" : "options are 'acquisition_only', 'acquisition_and_trgout', 'disabled', and 'trgout_only'"
     },
     "block_transfer" :
