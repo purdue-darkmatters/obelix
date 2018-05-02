@@ -94,7 +94,7 @@ DAQ::~DAQ() {
 
 void DAQ::Setup(const string& filename) {
     BOOST_LOG_TRIVIAL(info) << "Parsing config file " << filename << "...";
-    string temp(""), pmt_config_file(filename.substr(0, filename.find_last_of('/')) + "/pmt_config.json");
+    string pmt_config_file(filename.substr(0, filename.find_last_of('/')) + "/pmt_config.json");
     int link_number(0), conet_node(0), base_address(0), board(-1);
     ChannelSettings_t ChanSet;
     GW_t GW;
@@ -259,58 +259,58 @@ void DAQ::EndRun() {
     int log_size(0);
     char run_size[6];
     auto builder = bsoncxx::builder::stream::document{};
+    bsoncxx::docuemnt::value doc{};
     const string sBlockSize = " MMGTP";
 
-    builder << "is_zle" << config.IsZLE;
-    builder << "run_name" << config.RunName;
-    builder << "post_trigger" << config.PostTrigger;
-    builder << "events" << (int)m_vEventSizes.size();
-    builder << "start_time_ns" << (long long)m_tStart.time_since_epoch().count();
-    builder << "end_time_ns" << (long long)tEnd.time_since_epoch().count();
+    builder = builder << "is_zle" << config.IsZLE
+        << "run_name" << config.RunName
+        << "post_trigger" << config.PostTrigger
+        << "events" << (int)m_vEventSizes.size()
+        << "start_time_ns" << (long long)m_tStart.time_since_epoch().count()
+        << "end_time_ns" << (long long)tEnd.time_since_epoch().count()
 
-    builder << "channel_settings" << open_array;
+        << "channel_settings" << open_array;
     for (auto& cs : config.ChannelSettings) {
-        builder << open_document;
-        builder << "board" << cs.Board;
-        builder << "channel" << cs.Channel;
-        builder << "enabled" << cs.Enabled;
-        builder << "trigger_threshold" << cs.TriggerThreshold;
-        builder << "zle_threshold" << cs.ZLEThreshold;
-        builder << "zle_lbk" << cs.ZLE_N_LBK;
-        builder << "zle_lfw" << cs.ZLE_N_LFWD;
-        builder << close_document;
+        builder = builder << open_document
+            << "board" << cs.Board
+            << "channel" << cs.Channel
+            << "enabled" << cs.Enabled
+            << "trigger_threshold" << cs.TriggerThreshold
+            << "zle_threshold" << cs.ZLEThreshold
+            << "zle_lbk" << cs.ZLE_N_LBK
+            << "zle_lfw" << cs.ZLE_N_LFWD
+            << close_document;
     }
-    builder << close_array;
+    builder = builder << close_array
 
-    builder << "generic_writes" << open_array;
+        << "generic_writes" << open_array;
     for (auto& gw : config.GWs) {
-        builder << open_document;
-        builder << "board" << gw.board;
-        builder << "address" << gw.addr;
-        builder << "data" << gw.data;
-        builder << "mask" << gw.mask;
-        builder << close_document;
+        builder = builder << open_document
+            << "board" << gw.board
+            << "address" << gw.addr
+            << "data" << gw.data
+            << "mask" << gw.mask
+            << close_document;
     }
-    builder << close_array;
+    builder << close_array
 
-    builder << "file_info" << open_array;
+        << "file_info" << open_array;
     for (auto& f : m_vFileInfos) {
-        builser << open_document;
-        builder << "file_number" << f[file_number];
-        builder << "first_event" << f[first_event];
-        builder << "last_event" << f[last_event];
-        builder << "n_events" << f[n_events];
-        builder << close_document;
+        builder = builder << open_document
+        builder << "file_number" << f[file_number]
+            << "first_event" << f[first_event]
+            << "last_event" << f[last_event]
+            << "n_events" << f[n_events]
+            << close_document;
     }
-    builder << close_array;
+    builder = builder << close_array
 
-    builder << "event_size_bytes" << open_array;
-    for (auto& i : m_vEventSizes) builder << i;
-    builder << close_array;
-    builder << "event_size_cum" << open_array;
-    for (auto& i : m_vEventSizesCum) builder << i;
-    builder << close_array;
-    builder << finalize;
+        << "event_size_bytes" << open_array;
+    for (auto& i : m_vEventSizes) builder = builder << i
+    builder = builder << close_array
+        << "event_size_cum" << open_array;
+    for (auto& i : m_vEventSizesCum) builder = builder << i;
+    doc = builder << close_array << finalize;
 
     stringstream ss;
     ss << config.RawDataDir << config.RunName << "/pax_info.json";
@@ -319,7 +319,7 @@ void DAQ::EndRun() {
         BOOST_LOG_TRIVIAL(fatal) << "Could not open file header " << ss.str();
         throw DAQException();
     }
-    fheader << bsoncxx::to_json(builder, bsoncxx::ExtendedJsonMode::k_canonical);
+    fheader << bsoncxx::to_json(doc, bsoncxx::ExtendedJsonMode::k_canonical);
     fheader.close();
 
     if (!m_bTestRun) {
