@@ -27,6 +27,7 @@ const string config_dir("/depot/darkmatter/apps/asterix/obelix/config/");
 const int iBaselineRef(16000);
 
 struct GW_t {
+    int board;
     WORD addr;
     WORD data;
     WORD mask;

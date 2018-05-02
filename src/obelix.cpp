@@ -12,8 +12,8 @@ void logging_init(logging::trivial::severity_level level) {
 }
 
 int main(int argc, char** argv) {
-    const string version("1.4.0");
-    const int default_buffer_size(1024);
+    const string version("1.5.0");
+    const int default_buffer_size(32768);
     int buffer_length(0);
     string run_comment(""), default_log("info");
     po::options_description general_options("Allowed arguments");
