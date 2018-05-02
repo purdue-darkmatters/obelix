@@ -4,8 +4,10 @@
 
 #include <sstream>
 #include <iomanip>
-#include <bsoncxx/builder/stream/document.hpp>
 #include <bsoncxx/json.hpp>
+#include <bsoncxx/document/value.hpp>
+#include <bsoncxx/document/view.hpp>
+#include <bsoncxx/builder/stream/document.hpp>
 
 static int s_interrupted = 0;
 static void s_signal_handler(int signal_value) {
@@ -98,13 +100,16 @@ void DAQ::Setup(const string& filename) {
     GW_t GW;
     string json_string(""), str("");
     ifstream fin(filename, ifstream::in);
+    bsoncxx::document::value temp{};
+    bsoncxx::document::view config_dict{};
     if (!fin.is_open()) {
         BOOST_LOG_TRIVIAL(fatal) << "Could not open " << filename;
         throw DAQException();
     } else BOOST_LOG_TRIVIAL(debug) << "Opened " << filename;
     while (getline(fin, str)) json_string += str;
     try {
-        config_dict = bsoncss::from_json(json_string);
+        temp = bsoncxx::from_json(json_string);
+        config_dict = temp.view();
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error parsing " << filename << ". Is it valid json? " << e.what();
         throw DAQException();
@@ -128,7 +133,7 @@ void DAQ::Setup(const string& filename) {
         }
 
         for (auto& gw : config_dict["registers"].get_array().value) {
-            board = gw["board"].get_int32();
+            GW.board = gw["board"].get_int32();
             GW.addr = stoi(gw["register"].get_utf8().value.to_string(), nullptr, 16);
             GW.data = stoi(gw["data"].get_utf8().value.to_string(), nullptr, 16);
             GW.mask = stoi(gw["mask"].get_utf8().value.to_string(), nullptr, 16);
@@ -167,7 +172,7 @@ void DAQ::Setup(const string& filename) {
     }
 
     try {
-        m_DecodeThreads.assign(thread(&DAQ::DoesNothing, this), config_dict["decode_threads"]["value"].get_int32());
+        m_DecodeThreads.assign(config_dict["decode_threads"]["value"].get_int32(), thread(&DAQ::DoesNothing, this));
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error starting decode threads. " << e.what();
         throw DAQException();

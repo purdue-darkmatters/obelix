@@ -6,7 +6,6 @@
 #include "kbhit.h"
 
 #include <sqlite3.h>
-#include "mongo/bson/bson.h"
 
 #include <thread>
 #include <mutex>
@@ -70,7 +69,6 @@ private:
 
     vector<const char*> buffers;
 
-    mongo::BSONObj config_dict;
     struct {
         int RecordLength;
         int BlockTransfer;
