@@ -9,6 +9,9 @@
 #include <bsoncxx/document/view.hpp>
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
+#include <bsoncxx/types.hpp>
+
+using namespace bsoncxx;
 
 static int s_interrupted = 0;
 static void s_signal_handler(int signal_value) {
@@ -101,14 +104,14 @@ void DAQ::Setup(const string& filename) {
     GW_t GW;
     string json_string(""), str("");
     ifstream fin(filename, ifstream::in);
-    bsoncxx::document::view config_dict{};
+    document::view config_dict{};
     if (!fin.is_open()) {
         BOOST_LOG_TRIVIAL(fatal) << "Could not open " << filename;
         throw DAQException();
     } else BOOST_LOG_TRIVIAL(debug) << "Opened " << filename;
     while (getline(fin, str)) json_string += str;
     try {
-        bsoncxx::document::value temp = bsoncxx::from_json(json_string);
+        document::value temp = bsoncxx::from_json(json_string);
         config_dict = temp.view();
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error parsing " << filename << ". Is it valid json? " << e.what();
@@ -254,18 +257,18 @@ void DAQ::EndRun() {
     long run_size_bytes(0);
     int log_size(0);
     char run_size[16];
-    bsoncxx::builder::basic::document doc{};
+    builder::basic::document doc{};
     const string sBlockSize = " MMGTP";
-    using bsoncxx::builder::basic::sub_document;
-    using bsoncxx::builder::basic::sub_array;
-    using bsoncxx::builder::basic::kvp;
+    using builder::basic::sub_document;
+    using builder::basic::sub_array;
+    using builder::basic::kvp;
 
-    doc.append(kvp("is_zle", config.IsZLE));
+    doc.append(kvp("is_zle", types::b_bool{config.IsZLE}));
     doc.append(kvp("run_name", config.RunName));
-    doc.append(kvp("post_trigger", config.PostTrigger));
-    doc.append(kvp("events", (int)m_vEventSizes.size()));
-    doc.append(kvp("start_time_ns", m_tStart.time_since_epoch().count()));
-    doc.append(kvp("end_time_ns", tEnd.time_since_epoch().count()));
+    doc.append(kvp("post_trigger", types::b_int32{config.PostTrigger}));
+    doc.append(kvp("events", types::b_int32{(int)m_vEventSizes.size()}));
+    doc.append(kvp("start_time_ns", types::b_int64{m_tStart.time_since_epoch().count()}));
+    doc.append(kvp("end_time_ns", types::b_int64{tEnd.time_since_epoch().count()}));
 
 /*    doc.append(kvp("subdocument key", [&](sub_document subdoc) {
                        subdoc.append(kvp("subdoc key", "subdoc value"),
@@ -275,13 +278,13 @@ void DAQ::EndRun() {
     doc.append(kvp("channel_settings", [&](sub_array subarr) {
         for (auto& cs : config.ChannelSettings) {
             subarr.append([&](sub_document subdoc) {
-                subdoc.append(kvp("board", cs.Board));
-                subdoc.append(kvp("channel", cs.Channel));
-                subdoc.append(kvp("enabled", cs.Enabled));
-                subdoc.append(kvp("trigger_threshold", (int)cs.TriggerThreshold));
-                subdoc.append(kvp("zle_threshold", (int)cs.ZLEThreshold));
-                subdoc.append(kvp("zle_lbk", cs.ZLE_N_LBK));
-                subdoc.append(kvp("zle_lfw", cs.ZLE_N_LFWD));
+                subdoc.append(kvp("board", types::b_int32{cs.Board}));
+                subdoc.append(kvp("channel", types::b_int32{cs.Channel}));
+                subdoc.append(kvp("enabled", types::b_int32{cs.Enabled}));
+                subdoc.append(kvp("trigger_threshold", types::b_int32{(int)cs.TriggerThreshold}));
+                subdoc.append(kvp("zle_threshold", types::b_int32{(int)cs.ZLEThreshold}));
+                subdoc.append(kvp("zle_lbk", types::b_int32{cs.ZLE_N_LBK}));
+                subdoc.append(kvp("zle_lfw", types::b_int32{cs.ZLE_N_LFWD}));
             });
         }
     }));
@@ -289,10 +292,10 @@ void DAQ::EndRun() {
     doc.append(kvp("generic_writes", [&](sub_array subarr) {
         for (auto& gw : config.GWs) {
             subarr.append([&](sub_document subdoc) {
-                subdoc.append(kvp("board", gw.board));
-                subdoc.append(kvp("address", (int)gw.addr));
-                subdoc.append(kvp("data", (int)gw.data));
-                subdoc.append(kvp("mask", (int)gw.mask));
+                subdoc.append(kvp("board", types::b_int32{gw.board}));
+                subdoc.append(kvp("address", types::b_int32{(int)gw.addr}));
+                subdoc.append(kvp("data", types::b_int32{(int)gw.data}));
+                subdoc.append(kvp("mask", types::b_int32{(int)gw.mask}));
             });
         }
     }));
@@ -300,19 +303,19 @@ void DAQ::EndRun() {
     doc.append(kvp("file_info", [&](sub_array subarr) {
         for (auto& f : m_vFileInfos) {
             subarr.append([&](sub_document subdoc) {
-                subdoc.append(kvp("file_number", (int)f[file_number]));
-                subdoc.append(kvp("first_event", (int)f[first_event]));
-                subdoc.append(kvp("last_event", (int)f[last_event]));
-                subdoc.append(kvp("n_events", (int)f[n_events]));
+                subdoc.append(kvp("file_number", types::b_int32{(int)f[file_number]}));
+                subdoc.append(kvp("first_event", types::b_int32{(int)f[first_event]}));
+                subdoc.append(kvp("last_event", types::b_int32{(int)f[last_event]}));
+                subdoc.append(kvp("n_events", types::b_int32{(int)f[n_events]}));
             });
         }
     }));
 
     doc.append(kvp("event_size_bytes", [&](sub_array subarr) {
-        for (auto& i : m_vEventSizes) subarr.append((int)i);
+        for (auto& i : m_vEventSizes) subarr.append(types::b_int32{(int)i});
     }));
     doc.append(kvp("event_size_cum", [&](sub_array subarr) {
-        for (auto& i : m_vEventSizeCum) subarr.append((int)i);
+        for (auto& i : m_vEventSizeCum) subarr.append(types::b_int32{(int)i});
     }));
 
     stringstream ss;
