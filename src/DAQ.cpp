@@ -264,8 +264,8 @@ void DAQ::EndRun() {
     doc.append(kvp("run_name", config.RunName));
     doc.append(kvp("post_trigger", config.PostTrigger));
     doc.append(kvp("events", (int)m_vEventSizes.size()));
-    doc.append(kvp("start_time_ns", (long)m_tStart.time_since_epoch().count()));
-    doc.append(kvp("end_time_ns", (long)tEnd.time_since_epoch().count()));
+    doc.append(kvp("start_time_ns", m_tStart.time_since_epoch().count()));
+    doc.append(kvp("end_time_ns", tEnd.time_since_epoch().count()));
 
 /*    doc.append(kvp("subdocument key", [&](sub_document subdoc) {
                        subdoc.append(kvp("subdoc key", "subdoc value"),
@@ -278,8 +278,8 @@ void DAQ::EndRun() {
                 subdoc.append(kvp("board", cs.Board));
                 subdoc.append(kvp("channel", cs.Channel));
                 subdoc.append(kvp("enabled", cs.Enabled));
-                subdoc.append(kvp("trigger_threshold", cs.TriggerThreshold));
-                subdoc.append(kvp("zle_threshold", cs.ZLEThreshold));
+                subdoc.append(kvp("trigger_threshold", (int)cs.TriggerThreshold));
+                subdoc.append(kvp("zle_threshold", (int)cs.ZLEThreshold));
                 subdoc.append(kvp("zle_lbk", cs.ZLE_N_LBK));
                 subdoc.append(kvp("zle_lfw", cs.ZLE_N_LFWD));
             });
@@ -290,9 +290,9 @@ void DAQ::EndRun() {
         for (auto& gw : config.GWs) {
             subarr.append([&](sub_document subdoc) {
                 subdoc.append(kvp("board", gw.board));
-                subdoc.append(kvp("address", gw.addr));
-                subdoc.append(kvp("data", gw.data));
-                subdoc.append(kvp("mask", gw.mask));
+                subdoc.append(kvp("address", (int)gw.addr));
+                subdoc.append(kvp("data", (int)gw.data));
+                subdoc.append(kvp("mask", (int)gw.mask));
             });
         }
     }));
@@ -300,19 +300,19 @@ void DAQ::EndRun() {
     doc.append(kvp("file_info", [&](sub_array subarr) {
         for (auto& f : m_vFileInfos) {
             subarr.append([&](sub_document subdoc) {
-                subdoc.append(kvp("file_number", f[file_number]));
-                subdoc.append(kvp("first_event", f[first_event]));
-                subdoc.append(kvp("last_event", f[last_event]));
-                subdoc.append(kvp("n_events", f[n_events]));
+                subdoc.append(kvp("file_number", (int)f[file_number]));
+                subdoc.append(kvp("first_event", (int)f[first_event]));
+                subdoc.append(kvp("last_event", (int)f[last_event]));
+                subdoc.append(kvp("n_events", (int)f[n_events]));
             });
         }
     }));
 
     doc.append(kvp("event_size_bytes", [&](sub_array subarr) {
-        for (auto& i : m_vEventSizes) subarr.append(i);
+        for (auto& i : m_vEventSizes) subarr.append((int)i);
     }));
     doc.append(kvp("event_size_cum", [&](sub_array subarr) {
-        for (auto& i : m_vEventSizeCum) subarr.append(i);
+        for (auto& i : m_vEventSizeCum) subarr.append((int)i);
     }));
 
     stringstream ss;
