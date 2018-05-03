@@ -172,7 +172,7 @@ void DAQ::Setup(const string& filename) {
     }
 
     try {
-        for (int i = 0; i < config_dict["decode_threads"]["value"].get_int32(); i++) m_DecodeThreads.push_badk(thread(&DAQ::DoesNothing, this));
+        for (int i = 0; i < config_dict["decode_threads"]["value"].get_int32(); i++) m_DecodeThreads.push_bacdk(thread(&DAQ::DoesNothing, this));
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error starting decode threads. " << e.what();
         throw DAQException();
@@ -258,6 +258,7 @@ void DAQ::EndRun() {
     const string sBlockSize = " MMGTP";
     using bsoncxx::builder::basic::sub_document;
     using bsoncxx::builder::basic::sub_array;
+    using bsoncxx::builder::basic::kvp;
 
     doc.append(kvp("is_zle", config.IsZLE));
     doc.append(kvp("run_name", config.RunName));
@@ -266,14 +267,14 @@ void DAQ::EndRun() {
     doc.append(kvp("start_time_ns", m_tStart.time_since_epoch().count()));
     doc.append(kvp("end_time_ns", tEnd.time_since_epoch().count()));
 
-/*    doc.append(kvp("subdocument key", [](sub_document subdoc) {
+/*    doc.append(kvp("subdocument key", [&](sub_document subdoc) {
                        subdoc.append(kvp("subdoc key", "subdoc value"),
                                      kvp("another subdoc key", types::b_int64{1212}));
                    }), */
 
-    doc.append(kvp("channel_settings", [](sub_array subarr) {
+    doc.append(kvp("channel_settings", [&](sub_array subarr) {
         for (auto& cs : config.ChannelSettings) {
-            subarr.append([](sub_document subdoc) {
+            subarr.append([&](sub_document subdoc) {
                 subdoc.append(kvp("board", cs.Board));
                 subdoc.append(kvp("channel", cs.Channel));
                 subdoc.append(kvp("enabled", cs.Enabled));
@@ -285,9 +286,9 @@ void DAQ::EndRun() {
         }
     }));
 
-    doc.append(kvp("generic_writes", [](sub_array subarr) {
+    doc.append(kvp("generic_writes", [&](sub_array subarr) {
         for (auto& gw : config.GWs) {
-            subarr.append([](sub_document subdoc) {
+            subarr.append([&](sub_document subdoc) {
                 subdoc.append(kvp("board", gw.board));
                 subdoc.append(kvp("address", gw.addr));
                 subdoc.append(kvp("data", gw.data));
@@ -296,9 +297,9 @@ void DAQ::EndRun() {
         }
     }));
 
-    doc.append(kvp("file_info", [](sub_array subarr) {
+    doc.append(kvp("file_info", [&](sub_array subarr) {
         for (auto& f : m_vFileInfos) {
-            subarr.append([](sub_document subdoc) {
+            subarr.append([&](sub_document subdoc) {
                 subdoc.append(kvp("file_number", f[file_number]));
                 subdoc.append(kvp("first_event", f[first_event]));
                 subdoc.append(kvp("last_event", f[last_event]));
@@ -307,10 +308,10 @@ void DAQ::EndRun() {
         }
     }));
 
-    doc.append(kvp("event_size_bytes", [](sub_array subarr) {
+    doc.append(kvp("event_size_bytes", [&](sub_array subarr) {
         for (auto& i : m_vEventSizes) subarr.append(i);
     }));
-    doc.append(kvp("event_size_cum", [](sub_array subarr) {
+    doc.append(kvp("event_size_cum", [&](sub_array subarr) {
         for (auto& i : m_vEventSizeCum) subarr.append(i);
     }));
 
