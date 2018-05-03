@@ -172,7 +172,7 @@ void DAQ::Setup(const string& filename) {
     }
 
     try {
-        for (int i = 0; i < config_dict["decode_threads"]["value"].get_int32(); i++) m_DecodeThreads.push_bacdk(thread(&DAQ::DoesNothing, this));
+        for (int i = 0; i < config_dict["decode_threads"]["value"].get_int32(); i++) m_DecodeThreads.push_back(thread(&DAQ::DoesNothing, this));
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error starting decode threads. " << e.what();
         throw DAQException();
@@ -264,8 +264,8 @@ void DAQ::EndRun() {
     doc.append(kvp("run_name", config.RunName));
     doc.append(kvp("post_trigger", config.PostTrigger));
     doc.append(kvp("events", (int)m_vEventSizes.size()));
-    doc.append(kvp("start_time_ns", m_tStart.time_since_epoch().count()));
-    doc.append(kvp("end_time_ns", tEnd.time_since_epoch().count()));
+    doc.append(kvp("start_time_ns", (long)m_tStart.time_since_epoch().count()));
+    doc.append(kvp("end_time_ns", (long)tEnd.time_since_epoch().count()));
 
 /*    doc.append(kvp("subdocument key", [&](sub_document subdoc) {
                        subdoc.append(kvp("subdoc key", "subdoc value"),
