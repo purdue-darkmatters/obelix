@@ -7,7 +7,8 @@
 #include <bsoncxx/json.hpp>
 #include <bsoncxx/document/value.hpp>
 #include <bsoncxx/document/view.hpp>
-#include <bsoncxx/builder/stream/document.hpp>
+#include <bsoncxx/builder/basic/document.hpp>
+#include <bsoncxx/builder/basic/kvp.hpp>
 
 static int s_interrupted = 0;
 static void s_signal_handler(int signal_value) {
@@ -100,7 +101,6 @@ void DAQ::Setup(const string& filename) {
     GW_t GW;
     string json_string(""), str("");
     ifstream fin(filename, ifstream::in);
-    bsoncxx::document::value temp{};
     bsoncxx::document::view config_dict{};
     if (!fin.is_open()) {
         BOOST_LOG_TRIVIAL(fatal) << "Could not open " << filename;
@@ -108,7 +108,7 @@ void DAQ::Setup(const string& filename) {
     } else BOOST_LOG_TRIVIAL(debug) << "Opened " << filename;
     while (getline(fin, str)) json_string += str;
     try {
-        temp = bsoncxx::from_json(json_string);
+        bsoncxx::document::value temp = bsoncxx::from_json(json_string);
         config_dict = temp.view();
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error parsing " << filename << ". Is it valid json? " << e.what();
@@ -172,7 +172,7 @@ void DAQ::Setup(const string& filename) {
     }
 
     try {
-        m_DecodeThreads.assign(config_dict["decode_threads"]["value"].get_int32(), thread(&DAQ::DoesNothing, this));
+        for (int i = 0; i < config_dict["decode_threads"]["value"].get_int32(); i++) m_DecodeThreads.push_badk(thread(&DAQ::DoesNothing, this));
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error starting decode threads. " << e.what();
         throw DAQException();
@@ -250,67 +250,69 @@ void DAQ::EndRun() {
     BOOST_LOG_TRIVIAL(info) << "Ending run " << config.RunName;
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
-    using bsoncxx::builder::stream::open_array;
-    using bsoncxx::builder::stream::close_array;
-    using bsoncxx::builder::stream::open_document;
-    using bsoncxx::builder::stream::close_document;
 
     long run_size_bytes(0);
     int log_size(0);
-    char run_size[6];
-    auto builder = bsoncxx::builder::stream::document{};
-    bsoncxx::docuemnt::value doc{};
+    char run_size[16];
+    bsoncxx::builder::basic::document doc{};
     const string sBlockSize = " MMGTP";
+    using bsoncxx::builder::basic::sub_document;
+    using bsoncxx::builder::basic::sub_array;
 
-    builder = builder << "is_zle" << config.IsZLE
-        << "run_name" << config.RunName
-        << "post_trigger" << config.PostTrigger
-        << "events" << (int)m_vEventSizes.size()
-        << "start_time_ns" << (long long)m_tStart.time_since_epoch().count()
-        << "end_time_ns" << (long long)tEnd.time_since_epoch().count()
+    doc.append(kvp("is_zle", config.IsZLE));
+    doc.append(kvp("run_name", config.RunName));
+    doc.append(kvp("post_trigger", config.PostTrigger));
+    doc.append(kvp("events", (int)m_vEventSizes.size()));
+    doc.append(kvp("start_time_ns", m_tStart.time_since_epoch().count()));
+    doc.append(kvp("end_time_ns", tEnd.time_since_epoch().count()));
 
-        << "channel_settings" << open_array;
-    for (auto& cs : config.ChannelSettings) {
-        builder = builder << open_document
-            << "board" << cs.Board
-            << "channel" << cs.Channel
-            << "enabled" << cs.Enabled
-            << "trigger_threshold" << cs.TriggerThreshold
-            << "zle_threshold" << cs.ZLEThreshold
-            << "zle_lbk" << cs.ZLE_N_LBK
-            << "zle_lfw" << cs.ZLE_N_LFWD
-            << close_document;
-    }
-    builder = builder << close_array
+/*    doc.append(kvp("subdocument key", [](sub_document subdoc) {
+                       subdoc.append(kvp("subdoc key", "subdoc value"),
+                                     kvp("another subdoc key", types::b_int64{1212}));
+                   }), */
 
-        << "generic_writes" << open_array;
-    for (auto& gw : config.GWs) {
-        builder = builder << open_document
-            << "board" << gw.board
-            << "address" << gw.addr
-            << "data" << gw.data
-            << "mask" << gw.mask
-            << close_document;
-    }
-    builder << close_array
+    doc.append(kvp("channel_settings", [](sub_array subarr) {
+        for (auto& cs : config.ChannelSettings) {
+            subarr.append([](sub_document subdoc) {
+                subdoc.append(kvp("board", cs.Board));
+                subdoc.append(kvp("channel", cs.Channel));
+                subdoc.append(kvp("enabled", cs.Enabled));
+                subdoc.append(kvp("trigger_threshold", cs.TriggerThreshold));
+                subdoc.append(kvp("zle_threshold", cs.ZLEThreshold));
+                subdoc.append(kvp("zle_lbk", cs.ZLE_N_LBK));
+                subdoc.append(kvp("zle_lfw", cs.ZLE_N_LFWD));
+            });
+        }
+    }));
 
-        << "file_info" << open_array;
-    for (auto& f : m_vFileInfos) {
-        builder = builder << open_document
-        builder << "file_number" << f[file_number]
-            << "first_event" << f[first_event]
-            << "last_event" << f[last_event]
-            << "n_events" << f[n_events]
-            << close_document;
-    }
-    builder = builder << close_array
+    doc.append(kvp("generic_writes", [](sub_array subarr) {
+        for (auto& gw : config.GWs) {
+            subarr.append([](sub_document subdoc) {
+                subdoc.append(kvp("board", gw.board));
+                subdoc.append(kvp("address", gw.addr));
+                subdoc.append(kvp("data", gw.data));
+                subdoc.append(kvp("mask", gw.mask));
+            });
+        }
+    }));
 
-        << "event_size_bytes" << open_array;
-    for (auto& i : m_vEventSizes) builder = builder << i
-    builder = builder << close_array
-        << "event_size_cum" << open_array;
-    for (auto& i : m_vEventSizesCum) builder = builder << i;
-    doc = builder << close_array << finalize;
+    doc.append(kvp("file_info", [](sub_array subarr) {
+        for (auto& f : m_vFileInfos) {
+            subarr.append([](sub_document subdoc) {
+                subdoc.append(kvp("file_number", f[file_number]));
+                subdoc.append(kvp("first_event", f[first_event]));
+                subdoc.append(kvp("last_event", f[last_event]));
+                subdoc.append(kvp("n_events", f[n_events]));
+            });
+        }
+    }));
+
+    doc.append(kvp("event_size_bytes", [](sub_array subarr) {
+        for (auto& i : m_vEventSizes) subarr.append(i);
+    }));
+    doc.append(kvp("event_size_cum", [](sub_array subarr) {
+        for (auto& i : m_vEventSizeCum) subarr.append(i);
+    }));
 
     stringstream ss;
     ss << config.RawDataDir << config.RunName << "/pax_info.json";
@@ -319,7 +321,7 @@ void DAQ::EndRun() {
         BOOST_LOG_TRIVIAL(fatal) << "Could not open file header " << ss.str();
         throw DAQException();
     }
-    fheader << bsoncxx::to_json(doc, bsoncxx::ExtendedJsonMode::k_canonical);
+    fheader << bsoncxx::to_json(doc.view(), bsoncxx::ExtendedJsonMode::k_canonical);
     fheader.close();
 
     if (!m_bTestRun) {
