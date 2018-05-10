@@ -23,10 +23,10 @@
     {
         "board" : 0,
         "channel" : 2,
-        "enabled" : 0,
+        "enabled" : 1,
         "dc_offset" : 2700,
-        "trigger_threshold" : 0,
-        "zle_threshold" : 0,
+        "trigger_threshold" : 50,
+        "zle_threshold" : 25,
         "zle_lbk_samples" : 20,
         "zle_lfwd_samples" : 100
     },
