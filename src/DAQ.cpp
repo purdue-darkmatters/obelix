@@ -4,8 +4,14 @@
 
 #include <sstream>
 #include <iomanip>
-#include "mongo/db/json.h"
-#include "mongo/bson/bson.h"
+#include <bsoncxx/json.hpp>
+#include <bsoncxx/document/value.hpp>
+#include <bsoncxx/document/view.hpp>
+#include <bsoncxx/builder/basic/document.hpp>
+#include <bsoncxx/builder/basic/kvp.hpp>
+#include <bsoncxx/types.hpp>
+
+using namespace bsoncxx;
 
 static int s_interrupted = 0;
 static void s_signal_handler(int signal_value) {
@@ -92,19 +98,21 @@ DAQ::~DAQ() {
 
 void DAQ::Setup(const string& filename) {
     BOOST_LOG_TRIVIAL(info) << "Parsing config file " << filename << "...";
-    string temp(""), pmt_config_file(filename.substr(0, filename.find_last_of('/')) + "/pmt_config.json");
+    string pmt_config_file(filename.substr(0, filename.find_last_of('/')) + "/pmt_config.json");
     int link_number(0), conet_node(0), base_address(0), board(-1);
     ChannelSettings_t ChanSet;
     GW_t GW;
     string json_string(""), str("");
     ifstream fin(filename, ifstream::in);
+    document::view config_dict{};
     if (!fin.is_open()) {
         BOOST_LOG_TRIVIAL(fatal) << "Could not open " << filename;
         throw DAQException();
     } else BOOST_LOG_TRIVIAL(debug) << "Opened " << filename;
     while (getline(fin, str)) json_string += str;
     try {
-        config_dict = mongo::fromjson(json_string);
+        document::value temp = bsoncxx::from_json(json_string);
+        config_dict = temp.view();
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error parsing " << filename << ". Is it valid json? " << e.what();
         throw DAQException();
@@ -113,11 +121,11 @@ void DAQ::Setup(const string& filename) {
 
     vector<ConfigSettings_t> CS;
     try {
-        config.RawDataDir = config_dict["raw_data_dir"]["value"].String();
-        for (auto& d : config_dict["digitizers"].Array()) {
-            link_number = d["link_number"].Int();
-            conet_node = d["conet_node"].Int();
-            base_address = d["base_address"].Int();
+        config.RawDataDir = config_dict["raw_data_dir"]["value"].get_utf8().value.to_string();
+        for (auto& d : config_dict["digitizers"].get_array().value) {
+            link_number = d["link_number"].get_int32();
+            conet_node = d["conet_node"].get_int32();
+            base_address = d["base_address"].get_int32();
             try {
                 digis.push_back(unique_ptr<Digitizer>(new Digitizer(link_number, conet_node, base_address)));
                 CS.push_back(ConfigSettings_t{});
@@ -127,11 +135,11 @@ void DAQ::Setup(const string& filename) {
             }
         }
 
-        for (auto& gw : config_dict["registers"].Array()) {
-            board = gw["board"].Int();
-            GW.addr = stoi(gw["register"].String(), nullptr, 16);
-            GW.data = stoi(gw["data"].String(), nullptr, 16);
-            GW.mask = stoi(gw["mask"].String(), nullptr, 16);
+        for (auto& gw : config_dict["registers"].get_array().value) {
+            GW.board = gw["board"].get_int32();
+            GW.addr = stoi(gw["register"].get_utf8().value.to_string(), nullptr, 16);
+            GW.data = stoi(gw["data"].get_utf8().value.to_string(), nullptr, 16);
+            GW.mask = stoi(gw["mask"].get_utf8().value.to_string(), nullptr, 16);
             if (board == -1) for (auto& cs : CS) cs.GenericWrites.push_back(GW);
             else CS[board].GenericWrites.push_back(GW);
             config.GWs.push_back(GW);
@@ -143,19 +151,19 @@ void DAQ::Setup(const string& filename) {
 
     try {
         for (auto& cs : CS) {
-            cs.RecordLength = config_dict["record_length"]["value"].Int();
-            cs.PostTrigger = config_dict["post_trigger"]["value"].Int();
-            cs.BlockTransfer = config_dict["block_transfer"]["value"].Int();
-            cs.IsZLE = ZLE.at(config_dict["is_zle"]["value"].String()); // operator[] throws esoteric errors
-            cs.FPIO = FPIOlevel.at(config_dict["fpio_level"]["value"].String());
-            cs.ExtTriggerMode = TriggerMode.at(config_dict["external_trigger"]["value"].String());
-            cs.ChTriggerMode = TriggerMode.at(config_dict["channel_trigger"]["value"].String());
+            cs.RecordLength = config_dict["record_length"]["value"].get_int32();
+            cs.PostTrigger = config_dict["post_trigger"]["value"].get_int32();
+            cs.BlockTransfer = config_dict["block_transfer"]["value"].get_int32();
+            cs.IsZLE = ZLE.at(config_dict["is_zle"]["value"].get_utf8().value.to_string()); // operator[] throws esoteric errors
+            cs.FPIO = FPIOlevel.at(config_dict["fpio_level"]["value"].get_utf8().value.to_string());
+            cs.ExtTriggerMode = TriggerMode.at(config_dict["external_trigger"]["value"].get_utf8().value.to_string());
+            cs.ChTriggerMode = TriggerMode.at(config_dict["channel_trigger"]["value"].get_utf8().value.to_string());
             cs.EnableMask = 0;
         }
-        config.EventsPerFile = config_dict["events_per_file"]["value"].Int();
-        config.RecordLength = config_dict["record_length"]["value"].Int();
-        config.BlockTransfer = config_dict["block_transfer"]["value"].Int();
-        config.IsZLE = ZLE.at(config_dict["is_zle"]["value"].String());
+        config.EventsPerFile = config_dict["events_per_file"]["value"].get_int32();
+        config.RecordLength = config_dict["record_length"]["value"].get_int32();
+        config.BlockTransfer = config_dict["block_transfer"]["value"].get_int32();
+        config.IsZLE = ZLE.at(config_dict["is_zle"]["value"].get_utf8().value.to_string());
         BOOST_LOG_TRIVIAL(debug) << "Events per file: " << config.EventsPerFile;
         BOOST_LOG_TRIVIAL(debug) << "Record length: " << config.RecordLength;
         BOOST_LOG_TRIVIAL(debug) << "Block transfer: " << config.BlockTransfer;
@@ -167,7 +175,7 @@ void DAQ::Setup(const string& filename) {
     }
 
     try {
-        for (int i = 0; i < config_dict["decode_threads"]["value"].Int(); i++) m_DecodeThreads.push_back(thread(&DAQ::DoesNothing, this));
+        for (int i = 0; i < config_dict["decode_threads"]["value"].get_int32(); i++) m_DecodeThreads.push_back(thread(&DAQ::DoesNothing, this));
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error starting decode threads. " << e.what();
         throw DAQException();
@@ -182,23 +190,23 @@ void DAQ::Setup(const string& filename) {
     while (getline(fin, str)) json_string += str;
     fin.close();
     try {
-        config_dict = mongo::fromjson(json_string);
+        config_dict = bsoncxx::from_json(json_string);
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error parsing " << pmt_config_file << ". Is it valid json? " << e.what();
         throw DAQException();
     }
 
     try {
-        for (auto& cs : config_dict["channels"].Array()) {
-            ChanSet.Board               = cs["board"].Int();
-            ChanSet.Channel             = cs["channel"].Int();
-            ChanSet.Enabled             = cs["enabled"].Int();
-            ChanSet.DCoffset            = cs["dc_offset"].Int();
-            ChanSet.TriggerThreshold    = cs["trigger_threshold"].Int();
+        for (auto& cs : config_dict["channels"].get_array().value) {
+            ChanSet.Board               = cs["board"].get_int32();
+            ChanSet.Channel             = cs["channel"].get_int32();
+            ChanSet.Enabled             = cs["enabled"].get_int32();
+            ChanSet.DCoffset            = cs["dc_offset"].get_int32();
+            ChanSet.TriggerThreshold    = cs["trigger_threshold"].get_int32();
             ChanSet.TriggerMode         = CS[board].ChTriggerMode;
-            ChanSet.ZLEThreshold        = cs["zle_threshold"].Int();
-            ChanSet.ZLE_N_LFWD          = cs["zle_lfwd_samples"].Int();
-            ChanSet.ZLE_N_LBK           = cs["zle_lbk_samples"].Int();
+            ChanSet.ZLEThreshold        = cs["zle_threshold"].get_int32();
+            ChanSet.ZLE_N_LFWD          = cs["zle_lfwd_samples"].get_int32();
+            ChanSet.ZLE_N_LBK           = cs["zle_lbk_samples"].get_int32();
             if (ChanSet.Enabled) CS[ChanSet.Board].EnableMask |= (1 << ChanSet.Channel);
             CS[ChanSet.Board].ChannelSettings.push_back(ChanSet);
             config.ChannelSettings.push_back(ChanSet);
@@ -248,57 +256,67 @@ void DAQ::EndRun() {
 
     long run_size_bytes(0);
     int log_size(0);
-    char run_size[6];
-    mongo::BSONObjBuilder builder;
-    const string sBlockSize = "MMGTP";
+    char run_size[16];
+    builder::basic::document doc{};
+    const string sBlockSize = " MMGTP";
+    using builder::basic::sub_document;
+    using builder::basic::sub_array;
+    using builder::basic::kvp;
 
-    builder.append("is_zle", config.IsZLE);
-    builder.append("run_name", config.RunName);
-    builder.append("post_trigger", config.PostTrigger);
-    builder.append("events", (int)m_vEventSizes.size());
-    builder.append("start_time_ns", (long long)m_tStart.time_since_epoch().count());
-    builder.append("end_time_ns", (long long)tEnd.time_since_epoch().count());
+    doc.append(kvp("is_zle", config.IsZLE));
+    doc.append(kvp("run_name", config.RunName));
+    doc.append(kvp("post_trigger", config.PostTrigger));
+    doc.append(kvp("events", (int)m_vEventSizes.size()));
+    doc.append(kvp("start_time_ns", m_tStart.time_since_epoch().count()));
+    doc.append(kvp("end_time_ns", tEnd.time_since_epoch().count()));
 
-    vector<mongo::BSONObj> chan_sets;
-    for (auto& cs : config.ChannelSettings) {
-        mongo::BSONObjBuilder ch;
-        ch.append("board", cs.Board);
-        ch.append("channel", cs.Channel);
-        ch.append("enabled", cs.Enabled);
-        ch.append("trigger_threshold", cs.TriggerThreshold);
-        ch.append("zle_threshold", cs.ZLEThreshold);
-        ch.append("zle_lbk", cs.ZLE_N_LBK);
-        ch.append("zle_lfw", cs.ZLE_N_LFWD);
+/*    doc.append(kvp("subdocument key", [&](sub_document subdoc) {
+                       subdoc.append(kvp("subdoc key", "subdoc value"),
+                                     kvp("another subdoc key", types::b_int64{1212}));
+                   }), */
 
-        chan_sets.push_back(ch.obj());
-    }
-    builder.append("channel_settings", chan_sets);
+    doc.append(kvp("channel_settings", [&](sub_array subarr) {
+        for (auto& cs : config.ChannelSettings) {
+            subarr.append([&](sub_document subdoc) {
+                subdoc.append(kvp("board", cs.Board));
+                subdoc.append(kvp("channel", cs.Channel));
+                subdoc.append(kvp("enabled", cs.Enabled));
+                subdoc.append(kvp("trigger_threshold", (int)cs.TriggerThreshold));
+                subdoc.append(kvp("zle_threshold", (int)cs.ZLEThreshold));
+                subdoc.append(kvp("zle_lbk", cs.ZLE_N_LBK));
+                subdoc.append(kvp("zle_lfw", cs.ZLE_N_LFWD));
+            });
+        }
+    }));
 
-    vector<mongo::BSONObj> GW;
-    for (auto& gw : config.GWs) {
-        mongo::BSONObjBuilder gws;
-        gws.append("address", gw.addr);
-        gws.append("data", gw.data);
-        gws.append("mask", gw.mask);
+    doc.append(kvp("generic_writes", [&](sub_array subarr) {
+        for (auto& gw : config.GWs) {
+            subarr.append([&](sub_document subdoc) {
+                subdoc.append(kvp("board", gw.board));
+                subdoc.append(kvp("address", (int)gw.addr));
+                subdoc.append(kvp("data", (int)gw.data));
+                subdoc.append(kvp("mask", (int)gw.mask));
+            });
+        }
+    }));
 
-        GW.push_back(gws.obj());
-    }
-    builder.append("generic_writes", GW);
+    doc.append(kvp("file_info", [&](sub_array subarr) {
+        for (auto& f : m_vFileInfos) {
+            subarr.append([&](sub_document subdoc) {
+                subdoc.append(kvp("file_number", (int)f[file_number]));
+                subdoc.append(kvp("first_event", (int)f[first_event]));
+                subdoc.append(kvp("last_event", (int)f[last_event]));
+                subdoc.append(kvp("n_events", (int)f[n_events]));
+            });
+        }
+    }));
 
-    vector<mongo::BSONObj> file_nos;
-    for (auto& f : m_vFileInfos) {
-        mongo::BSONObjBuilder ff;
-        ff.append("file_number", f[file_number]);
-        ff.append("first_event", f[first_event]);
-        ff.append("last_event", f[last_event]);
-        ff.append("n_events", f[n_events]);
-
-        file_nos.push_back(ff.obj());
-    }
-    builder.append("file_info", file_nos);
-
-    builder.append("event_size_bytes", m_vEventSizes);
-    builder.append("event_size_cum", m_vEventSizeCum);
+    doc.append(kvp("event_size_bytes", [&](sub_array subarr) {
+        for (auto& i : m_vEventSizes) subarr.append((int)i);
+    }));
+    doc.append(kvp("event_size_cum", [&](sub_array subarr) {
+        for (auto& i : m_vEventSizeCum) subarr.append((int)i);
+    }));
 
     stringstream ss;
     ss << config.RawDataDir << config.RunName << "/pax_info.json";
@@ -307,7 +325,7 @@ void DAQ::EndRun() {
         BOOST_LOG_TRIVIAL(fatal) << "Could not open file header " << ss.str();
         throw DAQException();
     }
-    fheader << tojson(builder.obj(), mongo::Strict, true);
+    fheader << bsoncxx::to_json(doc.view());
     fheader.close();
 
     if (!m_bTestRun) {

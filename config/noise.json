@@ -6,14 +6,14 @@
             "base_address" : 0
         }
     ],
-    "record_length" : 
+    "record_length" :
     {
         "value" : 524288,
         "comment" : "number of samples in the acquisition window"
     },
     "external_trigger" :
     {
-        "value" : "acquisition_only",
+        "value" : "disabled",
         "comment" : "options are 'acquisition_only', 'acquisition_and_trgout', 'disabled', and 'trgout_only'"
     },
     "block_transfer" :
@@ -48,7 +48,7 @@
     },
     "raw_data_dir" :
     {
-        "value" : "/data/ASTERIX/raw/",
+        "value" : "/scratch/asterix_buffer/",
         "comment" : "where the data gets written. With trailing '/'"
     },
     "decode_threads" :

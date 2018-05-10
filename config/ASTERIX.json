@@ -48,7 +48,7 @@
     },
     "raw_data_dir" :
     {
-        "value" : "/data/ASTERIX/raw/",
+        "value" : "/scratch/asterix_buffer/",
         "comment" : "where the data gets written. With trailing '/'"
     },
     "decode_threads" :
