@@ -1,9 +1,9 @@
 CC = g++
 SRCDIR = src
 INCDIR = inc
-CFLAGS = -g -Wall -Iinc -std=c++11 -O2
+CFLAGS = -g -Wall -Iinc -std=c++17 -O2 -DBOOST_LOG_DYN_LINK -I/usr/local/include/bsoncxx/v_noabi
 CPPFLAGS = $(CFLAGS)
-LDFLAGS = -lCAENDigitizer -lmongoclient -lsqlite3 -lpthread -lboost_program_options
+LDFLAGS = -lCAENDigitizer -lsqlite3 -lpthread -lboost_program_options -lboost_log -lboost_log_setup -lboost_system -lbsoncxx
 INSTALL = /usr/local/bin/obelix
 TEST = test_exe
 

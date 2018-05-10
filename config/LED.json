@@ -1,12 +1,12 @@
 {
-    "digitizers" :
-    {
-        "type" : "PCI",
-        "link_number" : 0,
-        "conet_node" : 0,
-        "base_address" : 0
-    },
-    "record_length" : 
+    "digitizers" : [
+        {
+            "link_number" : 0,
+            "conet_node" : 0,
+            "base_address" : 0
+        }
+    ],
+    "record_length" :
     {
         "value" : 256,
         "comment" : "number of samples in the acquisition window"
@@ -29,7 +29,7 @@
     "fpio_level" :
     {
         "value" : "nim",
-        "comment" : "options are 'ttl' or 'nim'."
+        "comment" : "front panel io level. Options are 'ttl' or 'nim'."
     },
     "events_per_file" :
     {
@@ -44,11 +44,11 @@
     "channel_trigger" :
     {
         "value" : "disabled",
-        "comment" : "auto-trigger settings. Options are 'disabled', 'acquisition_only', 'acquisition_and_trgout'."
+        "comment" : "self-trigger settings. Options are 'disabled', 'acquisition_only', 'acquisition_and_trgout'."
     },
     "raw_data_dir" :
     {
-        "value" : "/data/ASTERIX/raw/",
+        "value" : "/scratch/asterix_buffer/",
         "comment" : "where the data gets written. With trailing '/'"
     },
     "decode_threads" :
