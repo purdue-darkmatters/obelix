@@ -120,7 +120,7 @@ void DAQ::Setup(const string& filename) {
     fin.close();
 
     vector<ConfigSettings_t> CS;
-    try {
+    try { 
         config.RawDataDir = config_dict["raw_data_dir"]["value"].get_utf8().value.to_string();
         for (auto& d : config_dict["digitizers"].get_array().value) {
             link_number = d["link_number"].get_int32();
@@ -143,6 +143,7 @@ void DAQ::Setup(const string& filename) {
             if (board == -1) for (auto& cs : CS) cs.GenericWrites.push_back(GW);
             else CS[board].GenericWrites.push_back(GW);
             config.GWs.push_back(GW);
+            BOOST_LOG_TRIVIAL(debug) << "Found GW " << setbase(16) << GW.board << '.' << GW.addr << '.' << GW.data << '.' << GW.mask << setbase(10);
         }
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error in config file block 1: " << e.what();

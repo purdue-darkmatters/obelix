@@ -12,7 +12,7 @@ void logging_init(logging::trivial::severity_level level) {
 }
 
 int main(int argc, char** argv) {
-    const string version("1.5.0");
+    const string version("1.5.1");
     const int default_buffer_size(32768);
     int buffer_length(0);
     string run_comment(""), default_log("info");
