@@ -130,9 +130,10 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
             if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting channel " << ch_set.Channel << " ZLE threshold: " << ret;
             else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set channel " << ch_set.Channel << " ZLE threshold";
 
-            address = CAEN_DGTZ_SAM_REG_VALUE + (0x100 * ch_set.Channel);
+            address = CAEN_DGTZ_CHANNEL_ZS_NSAMPLE_BASE_ADDRESS + (0x100 * ch_set.Channel);
             data = (ch_set.ZLE_N_LBK << 16) + ch_set.ZLE_N_LFWD;
-            ret = WriteRegister(GW_t{address, data, 0xFFFFFFFF});
+            BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": writing 0x" << setbase(16) << data << " to 0x" << address;
+            ret = WriteRegister(GW_t{m_iHandle, address, data, 0xFFFFFFFF});
             if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting channel " << ch_set.Channel << " ZLE parameters: " << ret;
             else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set channel " << ch_set.Channel << " ZLE parameters";
         }
@@ -141,6 +142,7 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
     for (auto& GW : CS.GenericWrites) {
         ret = WriteRegister(GW);
         if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": Error with register write: " << ret << setbase(16) << ", tried to write value 0x" << GW.data << " to 0x" << GW.addr << " with mask 0x" << GW.mask;
+        else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << " wrote " << setbase(16) << "0x" << GW.data << " to 0x" << GW.addr << " with mask 0x" << GW.mask << setbase(10);
     }
     buffer = nullptr;
     ret = CAEN_DGTZ_MallocReadoutBuffer(m_iHandle, &buffer, &AllocSize);
@@ -171,11 +173,13 @@ unsigned int Digitizer::ReadBuffer(unsigned int& BufferSize) {
     return NumEvents;
 }
 
-CAEN_DGTZ_ErrorCode Digitizer::WriteRegister(GW_t GW) {
+CAEN_DGTZ_ErrorCode Digitizer::WriteRegister(GW_t GW, bool bForce) {
     WORD temp = 0;
     CAEN_DGTZ_ErrorCode ret = CAEN_DGTZ_ReadRegister(m_iHandle, GW.addr, &temp);
-    if (ret != CAEN_DGTZ_Success)
-        return ret;
+    if (ret != CAEN_DGTZ_Success) {
+        BOOST_LOG_TRIVIAL(error) << "Error reading board " << m_iHandle << " register " << setbase(16) << "0x" << GW.addr << setbase(10);
+        if (!bForce) return ret;
+    }
 
     temp &= ~GW.mask;
     temp |= GW.data;

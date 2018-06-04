@@ -26,7 +26,7 @@ public:
     bool IsRunning() {return m_bRunning;}
 
 private:
-    CAEN_DGTZ_ErrorCode WriteRegister(GW_t GW);
+    CAEN_DGTZ_ErrorCode WriteRegister(GW_t GW, bool bForce = false);
 
     int m_iHandle;
     bool m_bRunning;
