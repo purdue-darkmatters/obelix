@@ -51,6 +51,7 @@ int KBHIT::kbhit() {
     else
         return 0;
 }
+
 /*
 static struct termios g_old_kbd_mode;
 

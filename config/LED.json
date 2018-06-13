@@ -9,7 +9,12 @@
     "record_length" :
     {
         "value" : 256,
-        "comment" : "number of samples in the acquisition window"
+        "comment" : "number of samples in the acquisition window, why 256? Must be multiple of 4"
+    },
+    "post_trigger" :
+    {
+        "value" : 75,
+        "comment" : "percentage of event after trigger"
     },
     "external_trigger" :
     {
@@ -20,11 +25,6 @@
     {
         "value" : 1023,
         "comment" : "number of events to readout at once. Must be smaller than max number of events stored on digitizer. Max 1023"
-    },
-    "post_trigger" :
-    {
-        "value" : 10,
-        "comment" : "percentage of event after trigger"
     },
     "fpio_level" :
     {

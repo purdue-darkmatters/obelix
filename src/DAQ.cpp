@@ -154,7 +154,8 @@ void DAQ::Setup(const string& filename) {
         for (auto& cs : CS) {
             cs.RecordLength = config_dict["record_length"]["value"].get_int32();
             cs.PostTrigger = config_dict["post_trigger"]["value"].get_int32();
-            cs.BlockTransfer = config_dict["block_transfer"]["value"].get_int32();
+            BOOST_LOG_TRIVIAL(debug) << "cs.PostTrigger set " << cs.PostTrigger; 
+	    cs.BlockTransfer = config_dict["block_transfer"]["value"].get_int32();
             cs.IsZLE = ZLE.at(config_dict["is_zle"]["value"].get_utf8().value.to_string()); // operator[] throws esoteric errors
             cs.FPIO = FPIOlevel.at(config_dict["fpio_level"]["value"].get_utf8().value.to_string());
             cs.ExtTriggerMode = TriggerMode.at(config_dict["external_trigger"]["value"].get_utf8().value.to_string());
@@ -165,10 +166,12 @@ void DAQ::Setup(const string& filename) {
         config.RecordLength = config_dict["record_length"]["value"].get_int32();
         config.BlockTransfer = config_dict["block_transfer"]["value"].get_int32();
         config.IsZLE = ZLE.at(config_dict["is_zle"]["value"].get_utf8().value.to_string());
-        BOOST_LOG_TRIVIAL(debug) << "Events per file: " << config.EventsPerFile;
+	config.PostTrigger = config_dict["post_trigger"]["value"].get_int32();
+	BOOST_LOG_TRIVIAL(debug) << "Events per file: " << config.EventsPerFile;
         BOOST_LOG_TRIVIAL(debug) << "Record length: " << config.RecordLength;
         BOOST_LOG_TRIVIAL(debug) << "Block transfer: " << config.BlockTransfer;
         BOOST_LOG_TRIVIAL(debug) << "Is ZLE: " << config.IsZLE;
+	BOOST_LOG_TRIVIAL(debug) << "Post Trigger Expected: " << config.PostTrigger;
 
     } catch (exception& e) {
         BOOST_LOG_TRIVIAL(fatal) << "Error in config file block 2: " << e.what();
@@ -239,7 +242,9 @@ void DAQ::StartRun() {
 
     m_vFileInfos.push_back(file_info{0,0,0,0});
     string command = "mkdir " + config.RawDataDir + config.RunName;
-    system(command.c_str());
+    int ret;
+    ret = system(command.c_str());
+    BOOST_LOG_TRIVIAL(debug) << "What is this, it's unused: " << ret;
     stringstream fullfilename;
     fullfilename << config.RawDataDir << config.RunName << "/" << config.RunName << "_" << setw(6) << setfill('0') << m_vFileInfos.size()-1 << flush << ".ast";
     fout.open(fullfilename.str(), ofstream::binary | ofstream::out);
@@ -251,6 +256,7 @@ void DAQ::StartRun() {
 
 void DAQ::EndRun() {
     if (!fout.is_open()) return;
+    printf(" \n");
     BOOST_LOG_TRIVIAL(info) << "Ending run " << config.RunName;
     if (fout.is_open()) fout.close();
     chrono::high_resolution_clock::time_point tEnd = chrono::high_resolution_clock::now();
@@ -487,7 +493,7 @@ void DAQ::Readout() {
             iLogReadSize = max(0, iLogReadSize);
             iLogReadSize = min(iLogReadSize, iMaxLogSize);
             FileRunTime = chrono::duration_cast<chrono::seconds>(ThisLoop - m_tStart).count();
-            if (m_abSaveWaveforms) sprintf(sOutput, "\rStatus: %4.1f %cB/s | %5i Hz | %4i sec | %i/%i | %6i/%6i ev |",
+            if (m_abSaveWaveforms) sprintf(sOutput, "\rStatus: %4.1f %cB/s | %5f Hz | %4i sec | %i/%i | %6i/%6i ev |",
                                                     (iTotalBuffer >> (iLogReadSize*10))/dLoopTime,
                                                     sBlockSize[iLogReadSize],
                                                     iTotalEvents/dLoopTime,
@@ -496,7 +502,7 @@ void DAQ::Readout() {
                                                     m_iToWrite.load(),
                                                     m_aiEventsInCurrentFile.load(),
                                                     m_aiEventsInRun.load());
-            else sprintf(sOutput, "\rStatus: %4.1f %cB/s | %5i Hz | %4i sec | %i",
+            else sprintf(sOutput, "\rStatus: %4.1f %cB/s | %5f Hz | %4i sec | %i |",
                                                     (iTotalBuffer >> (iLogReadSize*10))/dLoopTime,
                                                     sBlockSize[iLogReadSize],
                                                     iTotalEvents/dLoopTime,
@@ -613,3 +619,4 @@ void DAQ::ResetPointers() {
     m_iWritePtr.store(m_iInsertPtr.load());
     m_iDecodePtr.store(m_iInsertPtr.load());
 }
+

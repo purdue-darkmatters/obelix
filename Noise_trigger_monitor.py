@@ -70,7 +70,7 @@ zle_limit = 200
 for i,ch in enumerate(channels):
     here = events[:,i,:]
     trigger_threshold = run_metadata['channel_settings'][ch]['trigger_threshold']
-    zle_threshold = run_metadata['channel_settings'][ch]['trigger_threshold']
+    zle_threshold = run_metadata['channel_settings'][ch]['zle_threshold']
     print('Ch %i: Mean %f, trigger %i, zle %i' % (ch, np.mean(here), trigger_threshold, zle_threshold))
     n = np.zeros(2 ** 14)
     for v in np.reshape(here, -1):

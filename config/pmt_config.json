@@ -77,8 +77,8 @@
         "dc_offset" : 0,
         "trigger_threshold" : 0,
         "zle_threshold" : 0,
-        "zle_lbk_samples" : 5,
-        "zle_lfwd_samples" : 25
+        "zle_lbk_samples" : 20,
+        "zle_lfwd_samples" : 100
     }
     ]
 }

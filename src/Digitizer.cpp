@@ -63,33 +63,39 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
         BOOST_LOG_TRIVIAL(fatal) << "Board " << m_iHandle << ": error resetting digitizer. Please reset manually and restart";
         throw DigitizerException();
     }
-
     ret = CAEN_DGTZ_SetRecordLength(m_iHandle, CS.RecordLength);
-    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "error setting record length: " << ret;
+    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting record length: " << ret;
+    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set record length: " << CS.RecordLength;
     ret = CAEN_DGTZ_GetRecordLength(m_iHandle, &val);
-    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "error checking record length: " << ret;
+    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error getting record length: " << ret;
     if (val != CS.RecordLength) BOOST_LOG_TRIVIAL(warning) << "Board " << m_iHandle << ": record length, wanted " << CS.RecordLength << ", got " << val;
     else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": record length, wanted " << CS.RecordLength << ", got " << val;
 
+    ret = CAEN_DGTZ_SetDecimationFactor(m_iHandle, 1);
+    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Problem setting decimation factor";
+    else BOOST_LOG_TRIVIAL(debug) << "Set decimation factor";
+
     ret = CAEN_DGTZ_SetPostTriggerSize(m_iHandle, CS.PostTrigger);
-    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "error setting post trigger: " << ret;
+    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting post trigger: " << ret;
+    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set post trigger: " << CS.PostTrigger;
     ret = CAEN_DGTZ_GetPostTriggerSize(m_iHandle, &val);
-    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "error checking post trigger: " << ret;
+    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error getting post trigger: " << ret;
     if (val != CS.PostTrigger) BOOST_LOG_TRIVIAL(warning) << "Board " << m_iHandle << ": post trigger, wanted " << CS.PostTrigger << ", got " << val;
     else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": post trigger, wanted " << CS.PostTrigger << ", got " << val;
 
     ret = CAEN_DGTZ_SetIOLevel(m_iHandle, CS.FPIO);
     if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting IO level: " << ret;
-    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set IO level";
+    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set IO level: " << CS.FPIO;
 
     ret = CAEN_DGTZ_SetMaxNumEventsBLT(m_iHandle, CS.BlockTransfer);
     if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting block block transfer: " << ret;
-    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set block transfer";
+    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set block transfer: " << CS.BlockTransfer;
 
     ret = CAEN_DGTZ_SetAcquisitionMode(m_iHandle, CAEN_DGTZ_SW_CONTROLLED);
+    if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting aquisition mode: " << ret;
     ret = CAEN_DGTZ_SetExtTriggerInputMode(m_iHandle, CS.ExtTriggerMode);
     if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting external trigger mode: " << ret;
-    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set external trigger mode";
+    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set external trigger mode: " << CS.ExtTriggerMode;
 
     ret = CAEN_DGTZ_SetChannelEnableMask(m_iHandle, CS.EnableMask);
     if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting channel mask: " << ret;
@@ -100,7 +106,7 @@ void Digitizer::ProgramDigitizer(ConfigSettings_t& CS) {
 
     ret = CAEN_DGTZ_SetChannelSelfTrigger(m_iHandle, CS.ChTriggerMode, 0xFF);
     if (ret != CAEN_DGTZ_Success) BOOST_LOG_TRIVIAL(error) << "Board " << m_iHandle << ": error setting channel trigger mode: " << ret;
-    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set channel trigger mode";
+    else BOOST_LOG_TRIVIAL(debug) << "Board " << m_iHandle << ": set channel trigger mode: " << CS.ChTriggerMode;
 
     for (auto& ch_set : CS.ChannelSettings) {
         if (!ch_set.Enabled)
@@ -186,3 +192,4 @@ CAEN_DGTZ_ErrorCode Digitizer::WriteRegister(GW_t GW, bool bForce) {
     ret = CAEN_DGTZ_WriteRegister(m_iHandle, GW.addr, temp);
     return ret;
 }
+
